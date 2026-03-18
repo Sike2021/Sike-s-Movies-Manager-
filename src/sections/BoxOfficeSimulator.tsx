@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, RotateCcw, TrendingUp, DollarSign, BarChart3, Info, Globe } from 'lucide-react';
+import { Play, RotateCcw, TrendingUp, DollarSign, BarChart3, Info, Globe, Tv } from 'lucide-react';
 import { 
   type BoxOfficeMovie, 
   simulateDay, 
   simulateWeek, 
   getMovieReport,
   sellToStreaming,
-  calculateStreamingSalePrice
+  calculateStreamingSalePrice,
+  STREAMING_SERVICES
 } from '@/lib/boxOfficeSystem';
 import { formatMoney } from '@/lib/gameUtils';
 
@@ -108,8 +109,8 @@ export default function BoxOfficeSimulator() {
     setSimulationDay(0);
   };
 
-  const handleSellToStreaming = (id: string) => {
-    setMovies(prev => prev.map(m => m.id === id ? sellToStreaming(m) : m));
+  const handleSellToStreaming = (id: string, serviceId?: string) => {
+    setMovies(prev => prev.map(m => m.id === id ? sellToStreaming(m, serviceId) : m));
   };
 
   return (
@@ -244,25 +245,36 @@ export default function BoxOfficeSimulator() {
                   })}
                 </div>
 
-                {movie.status === 'Completed' && !movie.isSoldToStreaming && (
-                  <div className="pt-4 border-t border-white/5 flex items-center justify-between animate-in fade-in slide-in-from-bottom-2">
-                    <div className="space-y-1">
-                      <p className="text-[10px] text-[var(--text-muted)] uppercase font-bold">Streaming Offer</p>
-                      <p className="text-sm font-bold text-blue-400">{formatMoney(calculateStreamingSalePrice(movie))}</p>
-                    </div>
-                    <button 
-                      onClick={() => handleSellToStreaming(movie.id)}
-                      className="px-4 py-2 rounded-lg bg-blue-500 text-white text-xs font-bold hover:bg-blue-600 transition-colors shadow-lg shadow-blue-500/20"
-                    >
-                      Sell to Streaming
-                    </button>
-                  </div>
-                )}
-
                 {movie.isSoldToStreaming && (
                   <div className="pt-4 border-t border-white/5 flex items-center gap-2 text-blue-400">
                     <Globe className="w-4 h-4" />
-                    <span className="text-xs font-bold uppercase tracking-wider">Sold to Streaming for {formatMoney(movie.streamingSalePrice || 0)}</span>
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      Sold to {STREAMING_SERVICES.find(s => s.id === movie.soldToServiceId)?.name || 'Streaming'} for {formatMoney(movie.streamingSalePrice || 0)}
+                    </span>
+                  </div>
+                )}
+
+                {/* Direct to Streaming Options if not sold */}
+                {!movie.isSoldToStreaming && (
+                  <div className="pt-4 border-t border-white/5 space-y-3">
+                    <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)] uppercase font-bold">
+                      <Tv className="w-3 h-3" />
+                      Streaming Offers
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {STREAMING_SERVICES.map(service => (
+                        <button
+                          key={service.id}
+                          onClick={() => handleSellToStreaming(movie.id, service.id)}
+                          className="p-2 rounded-lg border border-white/5 bg-white/5 hover:bg-white/10 transition-all text-left space-y-1 group"
+                        >
+                          <p className="text-[9px] font-bold" style={{ color: service.color }}>{service.name}</p>
+                          <p className="text-[10px] font-bold text-white group-hover:text-[var(--gold)] transition-colors">
+                            {formatMoney(calculateStreamingSalePrice(movie, service.id))}
+                          </p>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </motion.div>

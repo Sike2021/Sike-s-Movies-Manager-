@@ -2,6 +2,20 @@ export type ReleaseType = "daily" | "weekly" | "auto";
 export type MovieStatus = "Upcoming" | "Running" | "Completed";
 export type BoxOfficePerformance = "Blockbuster" | "Hit" | "Average" | "Flop";
 
+export interface StreamingService {
+  id: string;
+  name: string;
+  baseMultiplier: number;
+  color: string;
+}
+
+export const STREAMING_SERVICES: StreamingService[] = [
+  { id: 'netflix', name: 'Netflix', baseMultiplier: 1.5, color: '#E50914' },
+  { id: 'disney', name: 'Disney+', baseMultiplier: 1.3, color: '#006E99' },
+  { id: 'prime', name: 'Prime Video', baseMultiplier: 1.2, color: '#00A8E1' },
+  { id: 'hbo', name: 'HBO Max', baseMultiplier: 1.4, color: '#5822B4' },
+];
+
 export interface BoxOfficeMovie {
   id: string;
   title: string;
@@ -24,31 +38,35 @@ export interface BoxOfficeMovie {
   performance?: BoxOfficePerformance;
   isSoldToStreaming?: boolean;
   streamingSalePrice?: number;
+  soldToServiceId?: string;
 }
 
 /**
  * Calculates the potential streaming sale price.
- * Formula: Budget * (1.1 + (Rating / 20) + (Hype / 5))
- * This ensures it's always higher than budget (min 1.1x).
+ * Formula: Budget * (BaseMultiplier + (Rating / 20) + (Hype / 5))
+ * This ensures it's always higher than budget.
  */
-export function calculateStreamingSalePrice(movie: BoxOfficeMovie): number {
-  const multiplier = 1.1 + (movie.rating / 20) + (movie.hype / 5);
+export function calculateStreamingSalePrice(movie: BoxOfficeMovie, serviceId?: string): number {
+  const service = STREAMING_SERVICES.find(s => s.id === serviceId);
+  const baseMultiplier = service ? service.baseMultiplier : 1.1;
+  const multiplier = baseMultiplier + (movie.rating / 20) + (movie.hype / 5);
   return Math.floor(movie.budget * multiplier);
 }
 
 /**
  * Sells the movie to a streaming service.
  */
-export function sellToStreaming(movie: BoxOfficeMovie): BoxOfficeMovie {
+export function sellToStreaming(movie: BoxOfficeMovie, serviceId?: string): BoxOfficeMovie {
   if (movie.isSoldToStreaming) return movie;
   
-  const salePrice = calculateStreamingSalePrice(movie);
+  const salePrice = calculateStreamingSalePrice(movie, serviceId);
   return {
     ...movie,
     isSoldToStreaming: true,
     streamingSalePrice: salePrice,
     totalCollection: movie.totalCollection + salePrice,
-    status: "Completed"
+    status: "Completed",
+    soldToServiceId: serviceId
   };
 }
 
