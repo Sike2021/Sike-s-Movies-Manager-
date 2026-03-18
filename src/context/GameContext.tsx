@@ -759,12 +759,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
         const parsed = JSON.parse(saved);
         // Convert date strings back to Date objects
         parsed.currentDate = new Date(parsed.currentDate);
-        parsed.movies = parsed.movies.map((m: any) => ({
+        parsed.movies = parsed.movies.map((m: Movie) => ({
           ...m,
           releaseDate: m.releaseDate ? new Date(m.releaseDate) : undefined,
           boxOffice: m.boxOffice ? {
             ...m.boxOffice,
-            daily: m.boxOffice.daily.map((d: any) => ({ ...d, date: new Date(d.date) }))
+            daily: m.boxOffice.daily.map((d: DailyBoxOffice) => ({ ...d, date: new Date(d.date) }))
           } : undefined,
           streamingRevenue: m.streamingRevenue || 0,
           isSoldToStreaming: m.isSoldToStreaming || false,
@@ -972,11 +972,11 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   const reReleaseMovie = useCallback((movieId: string) => {
     const movie = state.movies.find(m => m.id === movieId);
     if (movie) {
-      const boxOffice = calculateBoxOffice({ ...movie, isReRelease: true }, state.marketTrends, state.events, state.currentWeek);
+      const boxOffice = calculateBoxOffice();
       dispatch({ type: 'RE_RELEASE_MOVIE', movieId, boxOffice });
       dispatch({ type: 'ADD_NOTIFICATION', notification: { id: `rerelease-${Date.now()}`, type: 'success', title: 'Re-Release', message: `${movie.title} is back in theaters!`, date: state.currentDate, read: false } });
     }
-  }, [state.movies, state.marketTrends, state.events, state.currentWeek, state.currentDate]);
+  }, [state.movies, state.currentDate]);
 
   const holdMovieRelease = useCallback((movieId: string, hold: boolean) => {
     dispatch({ type: 'HOLD_MOVIE_RELEASE', movieId, hold });
