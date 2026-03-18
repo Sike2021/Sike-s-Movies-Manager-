@@ -1,11 +1,11 @@
 import { useGame } from '@/context/GameContext';
 import { formatMoney } from '@/lib/gameUtils';
-import { Clapperboard, Film, UserPlus, Play, Settings, ChevronRight, Star, Info, FastForward } from 'lucide-react';
+import { Clapperboard, Film, UserPlus, Play, Settings, ChevronRight, Star, Info, FastForward, BarChart3 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useState } from 'react';
 import { AboutModal } from '@/components/AboutModal';
 
-type Screen = 'dashboard' | 'movies' | 'talent' | 'stats' | 'settings' | 'create-movie' | 'simulation';
+type Screen = 'dashboard' | 'movies' | 'talent' | 'stats' | 'settings' | 'create-movie' | 'simulation' | 'box-office';
 
 interface DashboardProps {
   onNavigate: (screen: Screen) => void;
@@ -103,6 +103,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               </div>
               <p className="font-semibold">Quick Skip</p>
               <p className="text-xs text-[var(--text-muted)]">+1 Day</p>
+            </button>
+            <button onClick={() => onNavigate('box-office')} className="quick-action bg-blue-500/5 border-dashed border-blue-500/30">
+              <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 mb-3">
+                <BarChart3 className="w-6 h-6" />
+              </div>
+              <p className="font-semibold">B.O. Sim</p>
+              <p className="text-xs text-[var(--text-muted)]">Standalone</p>
             </button>
           </div>
         </div>

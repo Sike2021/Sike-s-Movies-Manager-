@@ -8,6 +8,7 @@ import { Settings } from '@/sections/Settings';
 import { CreateMovie } from '@/sections/CreateMovie';
 import { SimulationControl } from '@/sections/SimulationControl';
 import { SetupScreen } from '@/sections/SetupScreen';
+import BoxOfficeSimulator from '@/sections/BoxOfficeSimulator';
 import { Toaster } from '@/components/ui/sonner';
 import { Home, Film, Users, BarChart3, Settings as SettingsIcon } from 'lucide-react';
 import { registerSW } from 'virtual:pwa-register'
@@ -15,7 +16,7 @@ import { SimulationPopup } from '@/components/SimulationPopup';
 
 registerSW({ immediate: true })
 
-type Screen = 'setup' | 'dashboard' | 'movies' | 'talent' | 'stats' | 'settings' | 'create-movie' | 'simulation';
+type Screen = 'setup' | 'dashboard' | 'movies' | 'talent' | 'stats' | 'settings' | 'create-movie' | 'simulation' | 'box-office';
 
 interface BeforeInstallPromptEvent extends Event {
   readonly platforms: string[];
@@ -65,6 +66,7 @@ function GameContent() {
       case 'settings': return <Settings onNavigate={navigateTo} installApp={deferredPrompt ? installApp : undefined} />;
       case 'create-movie': return <CreateMovie onBack={goBack} />;
       case 'simulation': return <SimulationControl onBack={goBack} />;
+      case 'box-office': return <BoxOfficeSimulator />;
       default: return <Dashboard onNavigate={navigateTo} />;
     }
   };
