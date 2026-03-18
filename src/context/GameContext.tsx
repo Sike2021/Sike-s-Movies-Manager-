@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
-import type { GameState, Movie, Talent, Genre, ProductionPhase, BudgetTier, Franchise, Universe, DailyBoxOffice, Notification, MarketTrend, GameEvent, Continent, ContinentRelease, Character, RivalMovie, AwardType, ReleaseStrategy } from '@/types/game';
+import type { GameState, Movie, Talent, Genre, ProductionPhase, BudgetTier, Franchise, Universe, DailyBoxOffice, Notification, MarketTrend, GameEvent, Continent, ContinentRelease, Character, RivalMovie, AwardType, ReleaseStrategy, AwardNominee } from '@/types/game';
 import { GENRES, BUDGET_TIERS, PHASE_DURATIONS } from '@/types/game';
 import { generateTalentPool, generateMovieTitle, generateFranchiseColors, generateRivalMovie, formatMoney } from '@/lib/gameUtils';
 
@@ -20,6 +20,7 @@ interface GameContextType {
   holdMovieRelease: (movieId: string, hold: boolean) => void;
   updateReleaseDate: (movieId: string, week: number, year: number) => void;
   setContinentReleases: (movieId: string, releases: ContinentRelease[], strategy: ReleaseStrategy) => void;
+  clearSimulationResult: () => void;
 }
 
 interface MovieConfig {
@@ -73,10 +74,11 @@ type GameAction =
   | { type: 'HOLD_MOVIE_RELEASE'; movieId: string; hold: boolean }
   | { type: 'UPDATE_RELEASE_DATE'; movieId: string; week: number; year: number }
   | { type: 'SET_CONTINENT_RELEASES'; movieId: string; releases: ContinentRelease[]; strategy: ReleaseStrategy }
-  | { type: 'ADD_RIVAL_MOVIE'; movie: RivalMovie };
+  | { type: 'ADD_RIVAL_MOVIE'; movie: RivalMovie }
+  | { type: 'CLEAR_SIMULATION_RESULT' };
 
 const initialState: GameState = {
-  studio: { name: 'SigNify By Sike', owner: 'Sikandar', level: 1, reputation: 50, cash: 50000000, totalRevenue: 0, facilities: { soundStages: 2, postProduction: 2, marketing: 2 } },
+  studio: { name: 'Sike Entertainment', owner: 'Sikandar', level: 1, reputation: 50, cash: 50000000, totalRevenue: 0, facilities: { soundStages: 2, postProduction: 2, marketing: 2 }, totalAwardsWon: 0 },
   movies: [],
   talents: generateTalentPool(),
   characters: [],
@@ -273,6 +275,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     case 'TICK': {
       let currentState = { ...state };
+      let simulationResult: GameState['lastSimulationResult'] = undefined;
+      
       for (let i = 0; i < action.days; i++) {
         const newDate = new Date(currentState.currentDate);
         newDate.setDate(newDate.getDate() + 1);
@@ -280,8 +284,94 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         const newWeek = Math.floor(daysSinceStart / 7) + 1;
         const newYear = 2024 + Math.floor((newWeek - 1) / 52);
         
+        // Award System Logic
+        let awardEvent: NonNullable<GameState['lastSimulationResult']>['awards'] = undefined;
+        const isFeb5 = newDate.getMonth() === 1 && newDate.getDate() === 5;
+        const isFeb11 = newDate.getMonth() === 1 && newDate.getDate() === 11;
+
+        if (isFeb5) {
+          // Nominations
+          const currentYearMovies = currentState.movies.filter(m => m.releaseYear === newYear && m.phase === 'released');
+          const nominees: AwardNominee[] = [];
+          const categories = [
+            'Best Movie', 'Best Lead Actor', 'Best Lead Actress', 'Best Director', 
+            'Best Villain', 'Best Series', 'Best Supporting Actor', 'Best Special', 
+            'Best VFX', 'Best Composer'
+          ];
+
+          categories.forEach(cat => {
+            let eligible = currentYearMovies;
+            if (cat === 'Best Series') eligible = currentYearMovies.filter(m => m.movieType === 'series');
+            if (cat === 'Best Special') eligible = currentYearMovies.filter(m => m.movieType === 'special');
+            if (cat === 'Best Movie') eligible = currentYearMovies.filter(m => m.movieType === 'standalone' || m.movieType === 'franchise' || m.movieType === 'sequel');
+
+            if (eligible.length > 0) {
+              // Pick 3-5 nominees
+              const pool = [...eligible].sort(() => Math.random() - 0.5).slice(0, 5);
+              pool.forEach(p => {
+                let score = 0;
+                if (p.movieType === 'series') {
+                  score = (p.reviews?.critic || 50) + Math.random() * 20; // Viewership growth placeholder
+                } else {
+                  score = (p.reviews?.critic || 50) + ((p.boxOffice?.total || 0) / 1000000);
+                }
+                nominees.push({
+                  id: `nom-${cat}-${p.id}-${Date.now()}`,
+                  category: cat,
+                  projectId: p.id,
+                  score
+                });
+              });
+            }
+          });
+          awardEvent = { type: 'nominations', nominees };
+        }
+
+        if (isFeb11) {
+          // Ceremony (Winners)
+          const currentYearMovies = currentState.movies.filter(m => m.releaseYear === newYear && m.phase === 'released');
+          const winners: AwardNominee[] = [];
+          const categories = [
+            'Best Movie', 'Best Lead Actor', 'Best Lead Actress', 'Best Director', 
+            'Best Villain', 'Best Series', 'Best Supporting Actor', 'Best Special', 
+            'Best VFX', 'Best Composer'
+          ];
+
+          categories.forEach(cat => {
+            let eligible = currentYearMovies;
+            if (cat === 'Best Series') eligible = currentYearMovies.filter(m => m.movieType === 'series');
+            if (cat === 'Best Special') eligible = currentYearMovies.filter(m => m.movieType === 'special');
+            if (cat === 'Best Movie') eligible = currentYearMovies.filter(m => m.movieType === 'standalone' || m.movieType === 'franchise' || m.movieType === 'sequel');
+
+            if (eligible.length > 0) {
+              const winner = [...eligible].sort((a, b) => {
+                const scoreA = (a.reviews?.critic || 0) + ((a.boxOffice?.total || 0) / 1000000);
+                const scoreB = (b.reviews?.critic || 0) + ((b.boxOffice?.total || 0) / 1000000);
+                return scoreB - scoreA;
+              })[0];
+
+              winners.push({
+                id: `win-${cat}-${winner.id}-${Date.now()}`,
+                category: cat,
+                projectId: winner.id,
+                score: (winner.reviews?.critic || 0) + ((winner.boxOffice?.total || 0) / 1000000),
+                winner: true
+              });
+            }
+          });
+          awardEvent = { type: 'ceremony', winners };
+        }
+
         let reputationBoost = 0;
+        let awardsWonThisTick = 0;
         const updatedMovies = currentState.movies.map(movie => {
+          if (awardEvent?.type === 'ceremony') {
+            const isWinner = awardEvent.winners?.some((w: AwardNominee) => w.projectId === movie.id);
+            if (isWinner) {
+              awardsWonThisTick++;
+              return { ...movie, awards: [...movie.awards, 'Oscar' as AwardType] }; // Using Oscar as generic winner for now
+            }
+          }
           if (movie.phase === 'released') {
             // Update continent-specific box office if applicable
             if (movie.continentReleases) {
@@ -457,6 +547,35 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         
         const streamingRevenue = updatedMovies.filter(m => m.phase === 'released' && m.boxOffice).reduce((sum, m) => sum + (m.boxOffice!.total * 0.0005), 0);
         
+        // Simulation Result tracking (only for the last day of simulation or if awards happened)
+        if (i === action.days - 1 || awardEvent) {
+          const newsPool = [
+            "New Movie Announced",
+            "Actor Gains Popularity",
+            "Studio Reputation Rising",
+            "Market Trends Shifting",
+            "Streaming Viewership Up",
+            "Critics Praise Recent Release",
+            "Box Office Surprise Hit"
+          ];
+          const topMovies = updatedMovies
+            .filter(m => m.phase === 'released' && m.boxOffice)
+            .map(m => {
+              const daysReleased = m.boxOffice?.daily.length || 0;
+              const dailyRevenue = m.boxOffice?.daily[daysReleased - 1]?.total || 0;
+              return { id: m.id, title: m.title, dailyRevenue };
+            })
+            .sort((a, b) => b.dailyRevenue - a.dailyRevenue)
+            .slice(0, 3);
+
+          simulationResult = {
+            date: newDate,
+            topMovies,
+            news: [newsPool[Math.floor(Math.random() * newsPool.length)]],
+            awards: awardEvent
+          };
+        }
+
         currentState = { 
           ...currentState, 
           currentDate: newDate, 
@@ -465,11 +584,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           movies: updatedMovies,
           rivalMovies: newRivalMovies.slice(-100),
           rivalStudios: newRivalStudios,
+          lastSimulationResult: simulationResult || currentState.lastSimulationResult,
           studio: { 
             ...currentState.studio, 
             cash: currentState.studio.cash + streamingRevenue, 
             totalRevenue: currentState.studio.totalRevenue + streamingRevenue,
-            reputation: Math.min(100, currentState.studio.reputation + reputationBoost)
+            reputation: Math.min(100, currentState.studio.reputation + reputationBoost),
+            totalAwardsWon: currentState.studio.totalAwardsWon + awardsWonThisTick
           } 
         };
       }
@@ -609,6 +730,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
     case 'ADD_RIVAL_MOVIE':
       return { ...state, rivalMovies: [action.movie, ...state.rivalMovies].slice(0, 100) };
+    case 'CLEAR_SIMULATION_RESULT':
+      return { ...state, lastSimulationResult: undefined };
     default:
       return state;
   }
@@ -840,6 +963,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'ADD_REVENUE', amount: -totalMarketingCost });
   }, [state.studio.cash, state.currentDate]);
 
+  const clearSimulationResult = useCallback(() => dispatch({ type: 'CLEAR_SIMULATION_RESULT' }), []);
+
   return (
     <GameContext.Provider value={{ 
       state, 
@@ -857,7 +982,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       reReleaseMovie, 
       holdMovieRelease, 
       updateReleaseDate,
-      setContinentReleases
+      setContinentReleases,
+      clearSimulationResult
     }}>
       {children}
     </GameContext.Provider>

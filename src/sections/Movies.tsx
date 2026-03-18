@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useGame } from '@/context/GameContext';
 import { formatMoney, getPhaseColor } from '@/lib/gameUtils';
-import { ChevronLeft, Plus, Search, Film, Globe, DollarSign, Calendar } from 'lucide-react';
+import { ChevronLeft, Plus, Search, Film, Globe, DollarSign, Calendar, Tv, Mic, Trophy } from 'lucide-react';
 import { toast } from 'sonner';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -240,18 +240,34 @@ export function Movies({ onNavigate }: MoviesProps) {
           </TabsContent>
 
           <TabsContent value="past" className="mt-4 space-y-3">
-            {released.map(movie => (
-              <MovieCard 
-                key={movie.id} 
-                movie={movie} 
-                showBoxOffice 
-                onExtend={extendTheatricalRun} 
-                onReRelease={reReleaseMovie}
-                onHold={holdMovieRelease}
-                onUpdateDate={updateReleaseDate}
-              />
-            ))}
-            {released.length === 0 && <EmptyState />}
+            <Tabs defaultValue="released-movies" className="w-full">
+              <TabsList className="w-full grid grid-cols-3 bg-black/20 p-1 rounded-xl mb-4">
+                <TabsTrigger value="released-movies" className="text-[10px] rounded-lg data-[state=active]:bg-white/10">🎬 Movies</TabsTrigger>
+                <TabsTrigger value="released-series" className="text-[10px] rounded-lg data-[state=active]:bg-white/10">📺 Series</TabsTrigger>
+                <TabsTrigger value="released-specials" className="text-[10px] rounded-lg data-[state=active]:bg-white/10">🎤 Specials</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="released-movies" className="grid grid-cols-2 gap-3">
+                {released.filter(m => ['standalone', 'franchise', 'sequel', 'spinoff', 'crossover', 'teamup'].includes(m.movieType)).map(movie => (
+                  <ReleasedCard key={movie.id} movie={movie} />
+                ))}
+                {released.filter(m => ['standalone', 'franchise', 'sequel', 'spinoff', 'crossover', 'teamup'].includes(m.movieType)).length === 0 && <div className="col-span-2 py-8 text-center text-[var(--text-muted)] text-sm">No movies released yet</div>}
+              </TabsContent>
+
+              <TabsContent value="released-series" className="grid grid-cols-2 gap-3">
+                {released.filter(m => m.movieType === 'series').map(movie => (
+                  <ReleasedCard key={movie.id} movie={movie} />
+                ))}
+                {released.filter(m => m.movieType === 'series').length === 0 && <div className="col-span-2 py-8 text-center text-[var(--text-muted)] text-sm">No series released yet</div>}
+              </TabsContent>
+
+              <TabsContent value="released-specials" className="grid grid-cols-2 gap-3">
+                {released.filter(m => m.movieType === 'special').map(movie => (
+                  <ReleasedCard key={movie.id} movie={movie} />
+                ))}
+                {released.filter(m => m.movieType === 'special').length === 0 && <div className="col-span-2 py-8 text-center text-[var(--text-muted)] text-sm">No specials released yet</div>}
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
 
@@ -426,6 +442,68 @@ export function Movies({ onNavigate }: MoviesProps) {
 function getGenreEmoji(genre: string) {
   const emojis: Record<string, string> = { Action: '💥', Comedy: '😂', Horror: '👻', 'Sci-Fi': '🚀', Romance: '💕', Superhero: '🦸', Fantasy: '🐉', Mystery: '🔍', Animation: '🎨', Thriller: '🔪', Drama: '🎭', Documentary: '📹', Western: '🤠', Musical: '🎵', War: '⚔️', Crime: '🔫', Family: '👨‍👩‍👧‍👦', Noir: '🌃' };
   return emojis[genre] || '🎬';
+}
+
+function ReleasedCard({ movie }: { movie: Movie }) {
+  const hasAwards = movie.awards && movie.awards.length > 0;
+  
+  const getIcon = () => {
+    if (['standalone', 'franchise', 'sequel', 'spinoff', 'crossover', 'teamup'].includes(movie.movieType)) return <Film className="w-3 h-3" />;
+    if (movie.movieType === 'series') return <Tv className="w-3 h-3" />;
+    return <Mic className="w-3 h-3" />;
+  };
+
+  const posterUrl = `https://picsum.photos/seed/${movie.id}/300/450`;
+
+  return (
+    <div className="group relative aspect-[2/3] rounded-xl overflow-hidden bg-[var(--bg-card)] border border-white/5 shadow-lg transition-transform hover:scale-[1.02]">
+      {/* Background Image */}
+      <img 
+        src={posterUrl} 
+        alt={movie.title}
+        className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity"
+        referrerPolicy="no-referrer"
+      />
+      
+      {/* Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+
+      {/* Award Badge */}
+      {hasAwards && (
+        <div className="absolute top-2 right-2 w-8 h-8 rounded-full bg-[var(--gold)] flex items-center justify-center shadow-lg z-10">
+          <Trophy className="w-4 h-4 text-black" />
+        </div>
+      )}
+
+      {/* Type Icon */}
+      <div className="absolute top-2 left-2 p-1.5 rounded-lg bg-black/60 backdrop-blur-md border border-white/10 text-white z-10">
+        {getIcon()}
+      </div>
+
+      {/* Content */}
+      <div className="absolute inset-x-0 bottom-0 p-3 space-y-1">
+        <h4 className="font-bold text-sm leading-tight line-clamp-2 drop-shadow-md">{movie.title}</h4>
+        
+        <div className="flex flex-col gap-0.5">
+          {['standalone', 'franchise', 'sequel', 'spinoff', 'crossover', 'teamup'].includes(movie.movieType) && (
+            <>
+              <p className="text-[10px] text-[var(--gold)] font-bold">{formatMoney(movie.boxOffice?.total || 0)}</p>
+              <p className="text-[9px] text-green-400 font-medium">{movie.reviews?.critic}% Rating</p>
+            </>
+          )}
+          {movie.movieType === 'series' && (
+            <>
+              <p className="text-[10px] text-blue-400 font-bold">{movie.season || 1} Seasons</p>
+              <p className="text-[9px] text-[var(--text-muted)]">Avg: {Math.round((movie.boxOffice?.total || 0) / 1000000)}M Viewers</p>
+            </>
+          )}
+          {movie.movieType === 'special' && (
+            <p className="text-[10px] text-purple-400 font-bold">{movie.genres[0] || 'Documentary'}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function MovieCard({ movie, showBoxOffice, onExtend, onReRelease, onHold, onUpdateDate }: { 

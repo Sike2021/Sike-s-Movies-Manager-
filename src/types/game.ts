@@ -169,6 +169,7 @@ export interface Studio {
   cash: number;
   totalRevenue: number;
   facilities: { soundStages: number; postProduction: number; marketing: number };
+  totalAwardsWon: number;
 }
 
 export interface MarketTrend {
@@ -194,6 +195,26 @@ export interface Notification {
   read: boolean;
 }
 
+export interface AwardNominee {
+  id: string;
+  category: string;
+  projectId: string; // Movie or Series ID
+  talentId?: string;
+  score: number;
+  winner?: boolean;
+}
+
+export interface SimulationResult {
+  date: Date;
+  topMovies: { id: string; title: string; dailyRevenue: number }[];
+  news: string[];
+  awards?: {
+    type: 'nominations' | 'ceremony';
+    nominees?: AwardNominee[];
+    winners?: AwardNominee[];
+  };
+}
+
 export interface GameState {
   studio: Studio;
   movies: Movie[];
@@ -210,6 +231,7 @@ export interface GameState {
   currentYear: number;
   gameSpeed: number;
   notifications: Notification[];
+  lastSimulationResult?: SimulationResult;
 }
 
 export const GENRES: Genre[] = [

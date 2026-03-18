@@ -1,7 +1,9 @@
 import { useGame } from '@/context/GameContext';
 import { formatMoney } from '@/lib/gameUtils';
-import { Clapperboard, Film, UserPlus, Play, Settings, ChevronRight, Star } from 'lucide-react';
+import { Clapperboard, Film, UserPlus, Play, Settings, ChevronRight, Star, Info, FastForward } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useState } from 'react';
+import { AboutModal } from '@/components/AboutModal';
 
 type Screen = 'dashboard' | 'movies' | 'talent' | 'stats' | 'settings' | 'create-movie' | 'simulation';
 
@@ -10,7 +12,8 @@ interface DashboardProps {
 }
 
 export function Dashboard({ onNavigate }: DashboardProps) {
-  const { state } = useGame();
+  const { state, simulateTime } = useGame();
+  const [isAboutOpen, setIsAboutOpen] = useState(false);
   const activeMovies = state.movies.filter(m => m.phase !== 'released');
   
   const getReputationStars = () => {
@@ -34,10 +37,17 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <div className="flex items-center gap-1">{getReputationStars()}</div>
             </div>
           </div>
-          <button onClick={() => onNavigate('settings')} className="p-2 rounded-xl bg-[var(--bg-card)]">
-            <Settings className="w-5 h-5 text-[var(--text-secondary)]" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setIsAboutOpen(true)} className="p-2 rounded-xl bg-[var(--bg-card)] hover:bg-white/5 transition-colors">
+              <Info className="w-5 h-5 text-[var(--text-secondary)]" />
+            </button>
+            <button onClick={() => onNavigate('settings')} className="p-2 rounded-xl bg-[var(--bg-card)] hover:bg-white/5 transition-colors">
+              <Settings className="w-5 h-5 text-[var(--text-secondary)]" />
+            </button>
+          </div>
         </div>
+
+        <AboutModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
 
         {/* Stats Row */}
         <div className="grid grid-cols-3 gap-3">
@@ -86,6 +96,13 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               </div>
               <p className="font-semibold">Simulate</p>
               <p className="text-xs text-[var(--text-muted)]">Run timeline</p>
+            </button>
+            <button onClick={() => simulateTime(1/7)} className="quick-action bg-[var(--gold)]/5 border-dashed border-[var(--gold)]/30">
+              <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-[var(--gold)] mb-3">
+                <FastForward className="w-6 h-6" />
+              </div>
+              <p className="font-semibold">Quick Skip</p>
+              <p className="text-xs text-[var(--text-muted)]">+1 Day</p>
             </button>
           </div>
         </div>

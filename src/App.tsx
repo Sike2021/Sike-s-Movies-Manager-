@@ -11,6 +11,7 @@ import { SetupScreen } from '@/sections/SetupScreen';
 import { Toaster } from '@/components/ui/sonner';
 import { Home, Film, Users, BarChart3, Settings as SettingsIcon } from 'lucide-react';
 import { registerSW } from 'virtual:pwa-register'
+import { SimulationPopup } from '@/components/SimulationPopup';
 
 registerSW({ immediate: true })
 
@@ -97,6 +98,7 @@ function GameContent() {
       )}
       
       <Toaster position="top-center" toastOptions={{ style: { background: '#2d2920', color: '#fff', border: '1px solid #3d3828' } }} />
+      <SimulationPopup />
     </div>
   );
 }
