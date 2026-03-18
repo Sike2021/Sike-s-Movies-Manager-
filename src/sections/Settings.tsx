@@ -9,9 +9,10 @@ type Screen = 'dashboard' | 'movies' | 'talent' | 'stats' | 'settings' | 'create
 
 interface SettingsProps {
   onNavigate: (screen: Screen) => void;
+  installApp?: () => void;
 }
 
-export function Settings({ onNavigate }: SettingsProps) {
+export function Settings({ onNavigate, installApp }: SettingsProps) {
   const { state, upgradeFacility } = useGame();
 
   const handleUpgrade = (facility: 'soundStages' | 'postProduction' | 'marketing') => {
@@ -65,6 +66,29 @@ export function Settings({ onNavigate }: SettingsProps) {
             <div className="flex justify-between"><span className="text-[var(--text-muted)]">Franchises</span><span>{state.franchises.length}</span></div>
             <div className="flex justify-between"><span className="text-[var(--text-muted)]">Universes</span><span>{state.universes.length}</span></div>
           </div>
+        </div>
+
+        {installApp && (
+          <div className="card p-4 bg-[var(--gold)]/10 border-[var(--gold)]/30">
+            <h3 className="font-bold text-[var(--gold)] mb-2">Install App</h3>
+            <p className="text-xs text-[var(--text-muted)] mb-4">Install Movie Studio Tycoon on your home screen for a better experience.</p>
+            <Button onClick={installApp} className="w-full bg-[var(--gold)] text-black font-bold hover:brightness-110">Install Now</Button>
+          </div>
+        )}
+
+        <div className="pt-4 pb-8">
+          <Button 
+            variant="ghost" 
+            className="w-full text-red-500 hover:bg-red-500/10"
+            onClick={() => {
+              if (confirm('Are you sure you want to clear all game data? This cannot be undone.')) {
+                localStorage.clear();
+                window.location.reload();
+              }
+            }}
+          >
+            Clear All Game Data
+          </Button>
         </div>
       </div>
     </ScrollArea>

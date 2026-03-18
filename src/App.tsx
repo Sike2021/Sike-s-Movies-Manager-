@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { GameProvider } from '@/context/GameContext';
 import { Dashboard } from '@/sections/Dashboard';
 import { Movies } from '@/sections/Movies';
@@ -10,12 +10,43 @@ import { SimulationControl } from '@/sections/SimulationControl';
 import { SetupScreen } from '@/sections/SetupScreen';
 import { Toaster } from '@/components/ui/sonner';
 import { Home, Film, Users, BarChart3, Settings as SettingsIcon } from 'lucide-react';
+import { registerSW } from 'virtual:pwa-register'
+
+registerSW({ immediate: true })
 
 type Screen = 'setup' | 'dashboard' | 'movies' | 'talent' | 'stats' | 'settings' | 'create-movie' | 'simulation';
+
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: string[];
+  readonly userChoice: Promise<{
+    outcome: 'accepted' | 'dismissed';
+    platform: string;
+  }>;
+  prompt(): Promise<void>;
+}
 
 function GameContent() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('setup');
   const [previousScreen, setPreviousScreen] = useState<Screen>('setup');
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      e.preventDefault();
+      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const installApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   const navigateTo = (screen: Screen) => {
     setPreviousScreen(currentScreen);
@@ -30,7 +61,7 @@ function GameContent() {
       case 'movies': return <Movies onNavigate={navigateTo} />;
       case 'talent': return <Talent onNavigate={navigateTo} />;
       case 'stats': return <Stats onNavigate={navigateTo} />;
-      case 'settings': return <Settings onNavigate={navigateTo} />;
+      case 'settings': return <Settings onNavigate={navigateTo} installApp={deferredPrompt ? installApp : undefined} />;
       case 'create-movie': return <CreateMovie onBack={goBack} />;
       case 'simulation': return <SimulationControl onBack={goBack} />;
       default: return <Dashboard onNavigate={navigateTo} />;
