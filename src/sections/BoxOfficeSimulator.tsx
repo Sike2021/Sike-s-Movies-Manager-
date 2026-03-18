@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play, RotateCcw, TrendingUp, DollarSign, BarChart3, Info, Globe, Tv } from 'lucide-react';
+import { Play, RotateCcw, TrendingUp, DollarSign, BarChart3, Info, Globe, Tv, ChevronLeft } from 'lucide-react';
 import { 
   type BoxOfficeMovie, 
   simulateDay, 
@@ -69,7 +69,7 @@ const INITIAL_MOVIES: BoxOfficeMovie[] = [
   }
 ];
 
-export default function BoxOfficeSimulator() {
+export default function BoxOfficeSimulator({ onBack }: { onBack?: () => void }) {
   const [movies, setMovies] = useState<BoxOfficeMovie[]>(INITIAL_MOVIES);
   const [simulationDay, setSimulationDay] = useState(0);
 
@@ -116,9 +116,19 @@ export default function BoxOfficeSimulator() {
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
       <header className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Box Office Simulator</h1>
-          <p className="text-[var(--text-muted)]">Sike Entertainment v0.0.7.0 Standalone Module</p>
+        <div className="flex items-center gap-4">
+          {onBack && (
+            <button 
+              onClick={onBack}
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+          )}
+          <div>
+            <h1 className="text-3xl font-bold tracking-tight">Box Office Simulator</h1>
+            <p className="text-[var(--text-muted)] text-sm">Sike Entertainment v0.0.7.0 Standalone Module</p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <button 

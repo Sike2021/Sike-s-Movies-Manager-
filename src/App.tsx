@@ -66,7 +66,7 @@ function GameContent() {
       case 'settings': return <Settings onNavigate={navigateTo} installApp={deferredPrompt ? installApp : undefined} />;
       case 'create-movie': return <CreateMovie onBack={goBack} />;
       case 'simulation': return <SimulationControl onBack={goBack} />;
-      case 'box-office': return <BoxOfficeSimulator />;
+      case 'box-office': return <BoxOfficeSimulator onBack={goBack} />;
       default: return <Dashboard onNavigate={navigateTo} />;
     }
   };
