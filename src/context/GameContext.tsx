@@ -1,7 +1,7 @@
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
-import type { GameState, Movie, Talent, Genre, ProductionPhase, BudgetTier, Franchise, Universe, DailyBoxOffice, Notification, MarketTrend, GameEvent, Continent, ContinentRelease, Character, RivalMovie, AwardType } from '@/types/game';
+import type { GameState, Movie, Talent, Genre, ProductionPhase, BudgetTier, Franchise, Universe, DailyBoxOffice, Notification, MarketTrend, GameEvent, Continent, ContinentRelease, Character, RivalMovie, AwardType, ReleaseStrategy } from '@/types/game';
 import { GENRES, BUDGET_TIERS, PHASE_DURATIONS } from '@/types/game';
-import { generateTalentPool, generateMovieTitle, generateFranchiseColors, generateRivalMovie } from '@/lib/gameUtils';
+import { generateTalentPool, generateMovieTitle, generateFranchiseColors, generateRivalMovie, formatMoney } from '@/lib/gameUtils';
 
 interface GameContextType {
   state: GameState;
@@ -19,7 +19,7 @@ interface GameContextType {
   reReleaseMovie: (movieId: string) => void;
   holdMovieRelease: (movieId: string, hold: boolean) => void;
   updateReleaseDate: (movieId: string, week: number, year: number) => void;
-  setContinentReleases: (movieId: string, releases: ContinentRelease[]) => void;
+  setContinentReleases: (movieId: string, releases: ContinentRelease[], strategy: ReleaseStrategy) => void;
 }
 
 interface MovieConfig {
@@ -49,6 +49,8 @@ interface MovieConfig {
   season?: number;
   episodes?: number;
   scenesPerEpisode?: number;
+  releaseWeek?: number;
+  releaseYear?: number;
 }
 
 type GameAction =
@@ -70,7 +72,7 @@ type GameAction =
   | { type: 'RE_RELEASE_MOVIE'; movieId: string; boxOffice: Movie['boxOffice'] }
   | { type: 'HOLD_MOVIE_RELEASE'; movieId: string; hold: boolean }
   | { type: 'UPDATE_RELEASE_DATE'; movieId: string; week: number; year: number }
-  | { type: 'SET_CONTINENT_RELEASES'; movieId: string; releases: ContinentRelease[] }
+  | { type: 'SET_CONTINENT_RELEASES'; movieId: string; releases: ContinentRelease[]; strategy: ReleaseStrategy }
   | { type: 'ADD_RIVAL_MOVIE'; movie: RivalMovie };
 
 const initialState: GameState = {
@@ -163,8 +165,20 @@ function calculateContinentBoxOffice(movie: Movie, continent: Continent, marketi
   const eventMultiplier = activeEvent ? activeEvent.multiplier : 1;
 
   const qualityMultiplier = 1 + (avgQuality / 150);
+  
+  // Strategy multipliers
+  let strategyMultiplier = 1;
+  if (movie.releaseStrategy === 'express') strategyMultiplier = 0.85; // -15% hype
+  if (movie.releaseStrategy === 'tentpole') strategyMultiplier = 1.2; // +20% reach
+
   // Marketing boost: more budget = more revenue, but with diminishing returns
-  const marketingMultiplier = 0.5 + Math.min(1.5, (marketingBudget / (movie.budget * 0.1 + 1000000))); 
+  const marketingMultiplier = (0.5 + Math.min(1.5, (marketingBudget / (movie.budget * 0.1 + 1000000)))) * strategyMultiplier; 
+  
+  // Continent-specific bonuses
+  let continentBonus = 1;
+  if (continent === 'South America') continentBonus = 1.15; // Viral potential boost to base revenue
+  if (continent === 'Africa' || continent === 'Oceania') continentBonus = 1.1; // Passive income boost
+
   const awardMultiplier = 1 + (movie.awards.length * 0.1); 
   const studioMultiplier = 1 + (movie.studioReputationAtRelease ? movie.studioReputationAtRelease / 200 : 0.5);
   
@@ -177,11 +191,26 @@ function calculateContinentBoxOffice(movie: Movie, continent: Continent, marketi
     'Oceania': 0.2
   };
   
-  const baseRevenue = movie.budget * 0.8 * qualityMultiplier * trendMultiplier * eventMultiplier * marketingMultiplier * awardMultiplier * studioMultiplier * continentMultipliers[continent] * (0.8 + Math.random() * 0.4);
+  const baseRevenue = movie.budget * 0.8 * qualityMultiplier * trendMultiplier * eventMultiplier * marketingMultiplier * awardMultiplier * studioMultiplier * continentMultipliers[continent] * continentBonus * (0.8 + Math.random() * 0.4);
   
   const daily: DailyBoxOffice[] = [];
+  
+  // Longevity bonus for Asia
+  let dropRate = 1;
+  if (continent === 'Asia') dropRate = 0.85; // Slower drop off
+
+  // Opening weekend boost for North America
+  let openingBoost = 1;
+  if (continent === 'North America') openingBoost = 1.4;
+
   for (let day = 1; day <= 140; day++) {
-    const dayMultiplier = day <= 3 ? 3 : day <= 7 ? 1.8 : day <= 14 ? 0.9 : day <= 21 ? 0.5 : day <= 70 ? 0.25 : 0.1;
+    let dayMultiplier = day <= 3 ? 3 * openingBoost : day <= 7 ? 1.8 : day <= 14 ? 0.9 : day <= 21 ? 0.5 : day <= 70 ? 0.25 : 0.1;
+    
+    // Apply drop rate for days after opening weekend
+    if (day > 3) {
+      dayMultiplier *= Math.pow(dropRate, Math.floor((day - 3) / 7));
+    }
+
     const dayRevenue = (baseRevenue / 30) * dayMultiplier;
     daily.push({ day, date: new Date(), domestic: Math.round(dayRevenue * 0.5), international: Math.round(dayRevenue * 0.5), total: Math.round(dayRevenue), weekend: false });
   }
@@ -191,7 +220,17 @@ function calculateContinentBoxOffice(movie: Movie, continent: Continent, marketi
 
 function calculateReviews(movie: Movie): Movie['reviews'] {
   const q = movie.quality;
-  const criticScore = Math.min(100, q.script * 0.2 + q.acting * 0.2 + q.direction * 0.15 + q.cinematography * 0.1 + q.editing * 0.1 + q.music * 0.05 + q.production * 0.1 + q.marketing * 0.05 + q.vfx * 0.05 + (Math.random() * 10 - 5));
+  
+  // Europe bonus for reviews
+  let reviewBonus = 0;
+  if (movie.continentReleases) {
+    const europeRelease = movie.continentReleases.find(r => r.continent === 'Europe');
+    if (europeRelease && europeRelease.marketingBudget > 0) {
+      reviewBonus = Math.min(10, (europeRelease.marketingBudget / (movie.budget * 0.05 + 500000)) * 5);
+    }
+  }
+
+  const criticScore = Math.min(100, q.script * 0.2 + q.acting * 0.2 + q.direction * 0.15 + q.cinematography * 0.1 + q.editing * 0.1 + q.music * 0.05 + q.production * 0.1 + q.marketing * 0.05 + q.vfx * 0.05 + reviewBonus + (Math.random() * 10 - 5));
   const audienceScore = Math.min(100, q.acting * 0.25 + q.script * 0.15 + q.production * 0.2 + q.direction * 0.1 + q.music * 0.1 + q.vfx * 0.1 + q.cinematography * 0.05 + q.editing * 0.05 + (Math.random() * 15 - 7.5));
   return { critic: Math.round(criticScore), audience: Math.round(audienceScore) };
 }
@@ -565,7 +604,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return {
         ...state,
         studio: { ...state.studio, cash: state.studio.cash - totalMarketing },
-        movies: state.movies.map(m => m.id === action.movieId ? { ...m, continentReleases: action.releases, phase: 'marketing' } : m)
+        movies: state.movies.map(m => m.id === action.movieId ? { ...m, continentReleases: action.releases, phase: 'marketing', releaseStrategy: action.strategy } : m)
       };
     }
     case 'ADD_RIVAL_MOVIE':
@@ -682,6 +721,8 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       filmingWeeks: config.filmingWeeks || 8,
       season: config.season,
       episodes: config.episodes,
+      releaseWeek: config.releaseWeek,
+      releaseYear: config.releaseYear,
       theatricalWeeks: 10,
     };
     
@@ -789,13 +830,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'ADD_NOTIFICATION', notification: { id: `date-${Date.now()}`, type: 'info', title: 'Release Date Updated', message: `New release date: Week ${normalizedWeek}, ${finalYear}`, date: state.currentDate, read: false } });
   }, [state.currentDate]);
 
-  const setContinentReleases = useCallback((movieId: string, releases: ContinentRelease[]) => {
+  const setContinentReleases = useCallback((movieId: string, releases: ContinentRelease[], strategy: ReleaseStrategy) => {
     const totalMarketingCost = releases.reduce((sum, r) => sum + r.marketingBudget, 0);
     if (state.studio.cash < totalMarketingCost) {
       dispatch({ type: 'ADD_NOTIFICATION', notification: { id: Date.now().toString(), type: 'error', title: 'Insufficient Funds', message: 'Not enough cash for marketing campaign.', date: state.currentDate, read: false } });
       return;
     }
-    dispatch({ type: 'SET_CONTINENT_RELEASES', movieId, releases });
+    dispatch({ type: 'SET_CONTINENT_RELEASES', movieId, releases, strategy });
     dispatch({ type: 'ADD_REVENUE', amount: -totalMarketingCost });
   }, [state.studio.cash, state.currentDate]);
 

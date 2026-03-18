@@ -1,13 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useGame } from '@/context/GameContext';
 import { formatMoney, getPhaseColor } from '@/lib/gameUtils';
 import { ChevronLeft, Plus, Search, Film, Globe, DollarSign, Calendar } from 'lucide-react';
 import { toast } from 'sonner';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { type Movie, type ProductionPhase, type Continent, type ContinentRelease } from '@/types/game';
+import { type Movie, type ProductionPhase, type Continent, type ContinentRelease, type ReleaseStrategy } from '@/types/game';
 
 const CONTINENTS: Continent[] = ['North America', 'South America', 'Europe', 'Asia', 'Africa', 'Oceania'];
+
+const STRATEGIES: { id: ReleaseStrategy; name: string; offset: number; desc: string }[] = [
+  { id: 'express', name: 'Express', offset: 4, desc: '1 Month: Fast cash, -15% hype' },
+  { id: 'standard', name: 'Standard', offset: 12, desc: '3 Months: 100% efficiency' },
+  { id: 'tentpole', name: 'Tentpole', offset: 24, desc: '6 Months: +20% reach' },
+];
+
+const WEIGHTS: Record<Continent, number> = {
+  'North America': 0.4,
+  'Asia': 0.3,
+  'Europe': 0.15,
+  'South America': 0.1,
+  'Africa': 0.025,
+  'Oceania': 0.025
+};
 
 type Screen = 'dashboard' | 'movies' | 'talent' | 'stats' | 'settings' | 'create-movie' | 'simulation';
 
@@ -20,26 +35,56 @@ export function Movies({ onNavigate }: MoviesProps) {
   const [activeTab, setActiveTab] = useState('production');
   const [releaseConfigMovie, setReleaseConfigMovie] = useState<Movie | null>(null);
   const [globalReleaseWeek, setGlobalReleaseWeek] = useState(state.currentWeek + 4);
+  const [releaseStrategy, setReleaseStrategy] = useState<ReleaseStrategy>('standard');
+  const [totalMarketingBudget, setTotalMarketingBudget] = useState<number>(0);
+  const [continentConfigs, setContinentConfigs] = useState<Record<Continent, { marketing: number }>>(
+    CONTINENTS.reduce((acc, c) => ({ ...acc, [c]: { marketing: 0 } }), {} as Record<Continent, { marketing: number }>)
+  );
+
+  const autoFillMarketing = (total: number) => {
+    const newConfigs = { ...continentConfigs };
+    CONTINENTS.forEach(c => {
+      newConfigs[c].marketing = Math.round(total * WEIGHTS[c]);
+    });
+    setContinentConfigs(newConfigs);
+  };
+
+  const handleOpenReleaseConfig = useCallback((movie: Movie) => {
+    setReleaseConfigMovie(movie);
+    
+    if (movie.releaseWeek && movie.releaseYear) {
+      // Calculate total weeks from current date to pre-set release date
+      const totalWeeks = (movie.releaseYear - state.currentYear) * 52 + (movie.releaseWeek - state.currentWeek);
+      setGlobalReleaseWeek(state.currentWeek + totalWeeks);
+      setReleaseStrategy('standard');
+    } else {
+      const defaultStrategy = 'standard';
+      setReleaseStrategy(defaultStrategy);
+      const strategy = STRATEGIES.find(s => s.id === defaultStrategy)!;
+      setGlobalReleaseWeek(state.currentWeek + strategy.offset);
+    }
+    
+    const defaultMarketing = Math.round(movie.budget * 0.1);
+    setTotalMarketingBudget(defaultMarketing);
+    
+    // Auto-fill continent configs
+    const newConfigs = CONTINENTS.reduce((acc, c) => ({ 
+      ...acc, 
+      [c]: { marketing: Math.round(defaultMarketing * WEIGHTS[c]) } 
+    }), {} as Record<Continent, { marketing: number }>);
+    setContinentConfigs(newConfigs);
+  }, [state.currentWeek, state.currentYear]);
 
   // Auto-open release gate for movies ready for distribution
   useEffect(() => {
-    const readyMovie = state.movies.find(m => m.phase === 'postProduction' && m.progress >= 100 && (!m.releaseWeek || !m.releaseYear) && !m.continentReleases);
-    if (readyMovie && releaseConfigMovie?.id !== readyMovie.id) {
+    const readyMovie = state.movies.find(m => m.phase === 'postProduction' && m.progress >= 100 && !m.continentReleases);
+    if (readyMovie && (!releaseConfigMovie || releaseConfigMovie.id !== readyMovie.id)) {
       const timer = setTimeout(() => {
-        setReleaseConfigMovie(readyMovie);
-        setGlobalReleaseWeek(state.currentWeek + 4);
+        handleOpenReleaseConfig(readyMovie);
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [state.movies, state.currentWeek, releaseConfigMovie?.id]);
-  const [continentConfigs, setContinentConfigs] = useState<Record<Continent, { marketing: number }>>(
-    CONTINENTS.reduce((acc, c) => ({ ...acc, [c]: { marketing: 5000000 } }), {} as Record<Continent, { marketing: number }>)
-  );
-
-  const handleOpenReleaseConfig = (movie: Movie) => {
-    setReleaseConfigMovie(movie);
-    setGlobalReleaseWeek(state.currentWeek + 4);
-  };
+  }, [state.movies, state.currentWeek, releaseConfigMovie, handleOpenReleaseConfig]);
 
   const inProduction = state.movies.filter(m => m.phase !== 'released');
   const released = state.movies.filter(m => m.phase === 'released');
@@ -62,10 +107,11 @@ export function Movies({ onNavigate }: MoviesProps) {
         released: false
       };
     });
-    setContinentReleases(releaseConfigMovie.id, releases);
+    setContinentReleases(releaseConfigMovie.id, releases, releaseStrategy);
     setReleaseConfigMovie(null);
+    toast.success(`${releaseConfigMovie.title} greenlit for ${releaseStrategy} release!`);
   };
-  
+
   const getStatusBadge = (phase: ProductionPhase) => {
     switch(phase) {
       case 'writing': return <span className="bg-purple-500/20 text-purple-500 text-[8px] px-1.5 py-0.5 rounded-full border border-purple-500/30 uppercase font-black">Writing</span>;
@@ -157,83 +203,13 @@ export function Movies({ onNavigate }: MoviesProps) {
                           <p className="text-[10px] font-bold text-[var(--gold)] uppercase tracking-widest">Ready for Distribution</p>
                         </div>
                         
-                        <div className="grid grid-cols-1 gap-2">
-                          <button 
-                            onClick={() => handleOpenReleaseConfig(movie)}
-                            className="w-full bg-[var(--gold)] text-black py-2.5 rounded-xl text-xs font-black flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-[var(--gold)]/20"
-                          >
-                            <Globe className="w-4 h-4" /> Strategic Global Release
-                          </button>
-                          
-                          <div className="flex items-center gap-2 bg-black/40 p-2 rounded-xl border border-[var(--gold)]/20">
-                            <div className="flex-1">
-                              <p className="text-[9px] text-[var(--text-muted)] uppercase font-bold mb-1">Release Date</p>
-                              <div className="flex items-center gap-2">
-                                <div className="relative">
-                                  <select 
-                                    className="bg-transparent border-none focus:ring-0 text-xs font-bold p-0 outline-none appearance-none pr-4 cursor-pointer"
-                                    id={`release-week-${movie.id}`}
-                                    defaultValue={movie.releaseWeek || (state.currentWeek + 2 > 52 ? (state.currentWeek + 2) % 52 : state.currentWeek + 2)}
-                                  >
-                                    {Array.from({ length: 52 }, (_, i) => (
-                                      <option key={i + 1} value={i + 1} className="bg-[var(--bg-secondary)]">Wk {i + 1}</option>
-                                    ))}
-                                  </select>
-                                  <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)] text-[8px]">▼</div>
-                                </div>
-                                <div className="relative">
-                                  <select 
-                                    className="bg-transparent border-none focus:ring-0 text-xs font-bold p-0 outline-none appearance-none pr-4 cursor-pointer"
-                                    id={`release-year-${movie.id}`}
-                                    defaultValue={movie.releaseYear || (state.currentWeek + 2 > 52 ? state.currentYear + 1 : state.currentYear)}
-                                  >
-                                    {Array.from({ length: 5 }, (_, i) => (
-                                      <option key={state.currentYear + i} value={state.currentYear + i} className="bg-[var(--bg-secondary)]">{state.currentYear + i}</option>
-                                    ))}
-                                  </select>
-                                  <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)] text-[8px]">▼</div>
-                                </div>
-                              </div>
-                            </div>
-                            <button 
-                              onClick={() => {
-                                const weekSelect = document.getElementById(`release-week-${movie.id}`) as HTMLSelectElement;
-                                const yearSelect = document.getElementById(`release-year-${movie.id}`) as HTMLSelectElement;
-                                const weekVal = parseInt(weekSelect.value);
-                                const yearVal = parseInt(yearSelect.value);
-                                if (isNaN(weekVal) || isNaN(yearVal)) return;
-                                updateReleaseDate(movie.id, weekVal, yearVal);
-                                toast.success('Release date scheduled!');
-                              }}
-                              className="bg-[var(--gold)]/20 text-[var(--gold)] px-4 py-2 rounded-lg text-[10px] font-black uppercase border border-[var(--gold)]/30 hover:bg-[var(--gold)]/30 transition-all"
-                            >
-                              Set Date
-                            </button>
-                          </div>
-                          
-                          <button 
-                            onClick={() => {
-                              const weekSelect = document.getElementById(`release-week-${movie.id}`) as HTMLSelectElement;
-                              const yearSelect = document.getElementById(`release-year-${movie.id}`) as HTMLSelectElement;
-                              const weekVal = parseInt(weekSelect.value);
-                              const yearVal = parseInt(yearSelect.value);
-                              
-                              const releases: ContinentRelease[] = CONTINENTS.map(c => ({
-                                continent: c,
-                                releaseWeek: weekVal,
-                                releaseYear: yearVal,
-                                marketingBudget: Math.round(movie.budget * 0.05), // Default 5% marketing
-                                boxOffice: { total: 0, daily: [] },
-                                released: false
-                              }));
-                              setContinentReleases(movie.id, releases);
-                              toast.success('Movie sent to distribution!');
-                            }}
-                            className="w-full bg-blue-500/20 text-blue-400 py-2 rounded-xl text-[10px] font-black uppercase border border-blue-500/30 hover:bg-blue-500/30 transition-all"
-                          >
-                            Quick Release (5% Marketing)
-                          </button>
-                        </div>
+                        <button 
+                          onClick={() => handleOpenReleaseConfig(movie)}
+                          className="w-full bg-[var(--gold)] text-black py-3 rounded-xl text-xs font-black flex items-center justify-center gap-2 hover:opacity-90 transition-all shadow-lg shadow-[var(--gold)]/20"
+                        >
+                          <Globe className="w-4 h-4" /> Configure Global Release
+                        </button>
+                        <p className="text-[9px] text-[var(--text-muted)] text-center italic">Set timing, marketing budget, and continental strategy.</p>
                       </div>
                     )}
 
@@ -296,33 +272,82 @@ export function Movies({ onNavigate }: MoviesProps) {
               <button onClick={() => setReleaseConfigMovie(null)} className="p-2 text-[var(--text-muted)]">×</button>
             </div>
             
-            <div className="p-4 border-b border-[var(--border)] bg-black/40">
+            <div className="p-4 border-b border-[var(--border)] bg-black/40 space-y-4">
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-widest text-[var(--gold)] flex items-center gap-2">
+                    <Calendar className="w-4 h-4" /> Release Window
+                  </label>
+                  {releaseConfigMovie && (() => {
+                    const year = state.currentYear + Math.floor((globalReleaseWeek - 1) / 52);
+                    const normalizedWeek = ((globalReleaseWeek - 1) % 52) + 1;
+                    const isPlannedDate = releaseConfigMovie.releaseWeek === normalizedWeek && releaseConfigMovie.releaseYear === year;
+                    
+                    return (
+                      <div className="flex flex-col items-end gap-1">
+                        <div className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition-all ${isPlannedDate ? 'bg-[var(--gold)]/20 border-[var(--gold)] text-[var(--gold)]' : 'bg-black/40 border-[var(--border)] text-[var(--text-muted)]'}`}>
+                          Target: Week {normalizedWeek}, Year {year}
+                        </div>
+                        {isPlannedDate ? (
+                          <p className="text-[8px] text-[var(--gold)] font-bold uppercase tracking-tighter">Planned Release</p>
+                        ) : releaseConfigMovie.releaseWeek ? (
+                          <button 
+                            onClick={() => {
+                              const totalWeeks = (releaseConfigMovie.releaseYear! - state.currentYear) * 52 + (releaseConfigMovie.releaseWeek! - state.currentWeek);
+                              setGlobalReleaseWeek(state.currentWeek + totalWeeks);
+                              setReleaseStrategy('standard');
+                            }}
+                            className="text-[8px] text-[var(--gold)] underline font-bold uppercase tracking-widest hover:text-[var(--gold)]/80"
+                          >
+                            Reset to Planned
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {STRATEGIES.map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => {
+                        setReleaseStrategy(s.id);
+                        setGlobalReleaseWeek(state.currentWeek + s.offset);
+                      }}
+                      className={`p-2 rounded-xl border text-center transition-all ${releaseStrategy === s.id ? 'bg-[var(--gold)] text-black border-[var(--gold)]' : 'bg-black/40 border-[var(--border)] text-[var(--text-muted)]'}`}
+                    >
+                      <p className="text-[10px] font-black uppercase">{s.name}</p>
+                      <p className="text-[8px] opacity-70">{s.offset / 4} Month</p>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[9px] text-[var(--text-muted)] italic text-center">
+                  {STRATEGIES.find(s => s.id === releaseStrategy)?.desc}
+                </p>
+              </div>
+
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-widest text-[var(--gold)] flex items-center gap-2">
-                  <Calendar className="w-4 h-4" /> Global Release Date
+                  <DollarSign className="w-4 h-4" /> Total Marketing Budget
                 </label>
-                <div className="relative">
-                  <select 
-                    key={`release-week-${globalReleaseWeek}`}
-                    value={globalReleaseWeek}
-                    onChange={(e) => setGlobalReleaseWeek(parseInt(e.target.value))}
-                    className="w-full bg-black/60 border border-[var(--border)] rounded-xl px-4 py-3 text-sm appearance-none outline-none focus:border-[var(--gold)] cursor-pointer font-bold"
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-[var(--text-muted)]" />
+                    <input 
+                      type="number"
+                      placeholder="Enter total budget..."
+                      value={totalMarketingBudget || ''}
+                      onChange={(e) => setTotalMarketingBudget(parseInt(e.target.value) || 0)}
+                      className="w-full bg-black/60 border border-[var(--border)] rounded-xl pl-8 pr-3 py-2.5 text-sm font-bold outline-none focus:border-[var(--gold)]"
+                    />
+                  </div>
+                  <button 
+                    onClick={() => autoFillMarketing(totalMarketingBudget)}
+                    className="bg-[var(--gold)]/20 text-[var(--gold)] px-4 rounded-xl text-[10px] font-black uppercase border border-[var(--gold)]/30 hover:bg-[var(--gold)]/30 transition-all"
                   >
-                    {Array.from({ length: 104 }, (_, i) => {
-                      const weekNum = state.currentWeek + i + 1;
-                      const yearOffset = Math.floor((weekNum - 1) / 52);
-                      const displayWeek = ((weekNum - 1) % 52) + 1;
-                      const displayYear = state.currentYear + yearOffset;
-                      return (
-                        <option key={weekNum} value={weekNum} className="bg-[var(--bg-secondary)]">
-                          Week {displayWeek}, {displayYear}
-                        </option>
-                      );
-                    })}
-                  </select>
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--gold)]">▼</div>
+                    Auto-Fill
+                  </button>
                 </div>
-                <p className="text-[10px] text-[var(--text-muted)] italic">This date will apply to all continents simultaneously.</p>
               </div>
             </div>
             
@@ -330,15 +355,16 @@ export function Movies({ onNavigate }: MoviesProps) {
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-2">
                   <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--text-muted)]">Continent Marketing</h3>
-                  <button 
-                    onClick={() => {
-                      const avg = Math.round(state.studio.cash * 0.02);
-                      setContinentConfigs(CONTINENTS.reduce((acc, c) => ({ ...acc, [c]: { marketing: avg } }), {} as Record<Continent, { marketing: number }>));
-                    }}
-                    className="text-[10px] text-[var(--gold)] hover:underline"
-                  >
-                    Auto-fill (2% each)
-                  </button>
+                  <div className="group relative">
+                    <div className="text-[10px] text-[var(--gold)] cursor-help border-b border-dotted border-[var(--gold)]">Market Bonuses</div>
+                    <div className="absolute right-0 bottom-full mb-2 w-48 p-2 bg-black/90 border border-[var(--border)] rounded-lg text-[8px] text-[var(--text-muted)] opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                      <p><span className="text-[var(--gold)]">NA:</span> Opening Weekend Boost</p>
+                      <p><span className="text-[var(--gold)]">Asia:</span> Longevity Multiplier</p>
+                      <p><span className="text-[var(--gold)]">Europe:</span> Critical Reception</p>
+                      <p><span className="text-[var(--gold)]">SA:</span> Viral Potential</p>
+                      <p><span className="text-[var(--gold)]">AF/OC:</span> Passive Income</p>
+                    </div>
+                  </div>
                 </div>
                 {CONTINENTS.map(continent => (
                   <div key={continent} className="p-4 bg-black/20 rounded-2xl border border-[var(--border)] flex items-center justify-between gap-4">

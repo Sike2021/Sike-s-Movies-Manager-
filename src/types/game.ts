@@ -11,6 +11,7 @@ export type BudgetTier = 'micro' | 'indie' | 'mid' | 'blockbuster' | 'epic';
 export type TalentType = 'actor' | 'director' | 'writer' | 'cinematographer' | 'editor' | 'composer' | 'producer' | 'vfx' | 'productionDesigner' | 'costumeDesigner';
 export type AwardType = 'Oscar' | 'Emmy' | 'Golden Globe' | 'Critics Choice' | 'notified';
 export type Continent = 'North America' | 'South America' | 'Europe' | 'Asia' | 'Africa' | 'Oceania';
+export type ReleaseStrategy = 'express' | 'standard' | 'tentpole';
 
 export interface ContinentRelease {
   continent: Continent;
@@ -138,6 +139,7 @@ export interface Movie {
   isHeld?: boolean;
   studioReputationAtRelease?: number;
   continentReleases?: ContinentRelease[];
+  releaseStrategy?: ReleaseStrategy;
 }
 
 export interface RivalStudio {

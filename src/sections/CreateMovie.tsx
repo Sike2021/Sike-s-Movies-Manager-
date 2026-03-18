@@ -28,6 +28,9 @@ export function CreateMovie({ onBack }: CreateMovieProps) {
   const [season, setSeason] = useState(1);
   const [episodes, setEpisodes] = useState(10);
   
+  const [releaseWeek, setReleaseWeek] = useState(1);
+  const [releaseYear, setReleaseYear] = useState(state.currentYear);
+  
   const [leadCast, setLeadCast] = useState<string[]>([]);
   const [director, setDirector] = useState('');
   const [writer, setWriter] = useState('');
@@ -65,6 +68,12 @@ export function CreateMovie({ onBack }: CreateMovieProps) {
   const talentSalaries = castAndCrew.reduce((sum, t) => sum + t.salary, 0);
   const totalEstimatedBudget = estimatedProductionCost + talentSalaries;
   const canAfford = state.studio.cash >= totalEstimatedBudget;
+
+  // Production Timeline Calculation
+  // writing: 4 weeks, preProduction: 3 weeks, locations: 2 weeks, filming: filmingWeeks, postProduction: 5 weeks, marketing: 2 weeks buffer
+  const totalProductionWeeks = 4 + 3 + 2 + filmingWeeks + 5 + 2;
+  const suggestedWeek = ((state.currentWeek + totalProductionWeeks - 1) % 52) + 1;
+  const suggestedYear = state.currentYear + Math.floor((state.currentWeek + totalProductionWeeks - 1) / 52);
 
   const toggleGenre = (g: Genre) => {
     if (genres.includes(g)) {
@@ -146,6 +155,8 @@ export function CreateMovie({ onBack }: CreateMovieProps) {
       characters: characters.filter(c => c.name.trim() !== ''),
       season: movieType === 'series' ? season : undefined,
       episodes: movieType === 'series' ? episodes : undefined,
+      releaseWeek,
+      releaseYear,
     });
     toast.success('Production greenlit!');
     onBack();
@@ -635,7 +646,16 @@ export function CreateMovie({ onBack }: CreateMovieProps) {
 
             <div className="flex gap-3">
               <Button onClick={() => setStep(4)} variant="outline" className="flex-1 h-12 rounded-xl border-[var(--border)]">Back</Button>
-              <Button onClick={() => setStep(6)} className="flex-1 btn-primary h-12 rounded-xl text-lg font-bold">Next: Review</Button>
+              <Button 
+                onClick={() => {
+                  setReleaseWeek(suggestedWeek);
+                  setReleaseYear(suggestedYear);
+                  setStep(6);
+                }} 
+                className="flex-1 btn-primary h-12 rounded-xl text-lg font-bold"
+              >
+                Next: Review
+              </Button>
             </div>
           </div>
         )}
@@ -662,6 +682,39 @@ export function CreateMovie({ onBack }: CreateMovieProps) {
                   <ReviewItem label={movieType === 'series' ? 'Runtime per Ep' : 'Runtime'} value={formatRuntime(estimatedRuntime)} />
                   <ReviewItem label="Filming" value={`${filmingWeeks} Weeks`} />
                   <ReviewItem label="Universe" value={state.universes.find(u => u.id === universeId)?.name || 'None'} />
+                </div>
+
+                <div className="pt-4 border-t border-[var(--border)] space-y-4">
+                  <h3 className="text-[10px] font-bold uppercase tracking-wider text-[var(--gold)]">Release Date Selection</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Release Week</label>
+                      <select 
+                        value={releaseWeek} 
+                        onChange={(e) => setReleaseWeek(Number(e.target.value))}
+                        className="w-full bg-[var(--card-bg)] border border-[var(--border)] rounded-lg p-2 text-sm focus:outline-none focus:border-[var(--gold)]"
+                      >
+                        {Array.from({ length: 52 }, (_, i) => i + 1).map(w => (
+                          <option key={w} value={w}>Week {w}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] uppercase font-bold text-[var(--text-muted)]">Release Year</label>
+                      <select 
+                        value={releaseYear} 
+                        onChange={(e) => setReleaseYear(Number(e.target.value))}
+                        className="w-full bg-[var(--card-bg)] border border-[var(--border)] rounded-lg p-2 text-sm focus:outline-none focus:border-[var(--gold)]"
+                      >
+                        {[state.currentYear, state.currentYear + 1, state.currentYear + 2, state.currentYear + 3].map(y => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <p className="text-[10px] text-[var(--text-muted)] italic">
+                    * Suggested release: Week {suggestedWeek}, {suggestedYear} (based on {totalProductionWeeks} weeks production)
+                  </p>
                 </div>
 
                 <div className="pt-4 border-t border-[var(--border)]">
