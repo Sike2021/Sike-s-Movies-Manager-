@@ -1,5 +1,5 @@
 import { createContext, useContext, useReducer, useEffect, useCallback, useRef } from 'react';
-import type { GameState, Movie, Talent, Genre, ProductionPhase, BudgetTier, Franchise, Universe, DailyBoxOffice, Notification, MarketTrend, GameEvent, Continent, ContinentRelease, Character, RivalMovie, AwardType, ReleaseStrategy, AwardNominee } from '@/types/game';
+import type { GameState, Movie, Talent, Genre, ProductionPhase, BudgetTier, Franchise, Universe, DailyBoxOffice, Notification, MarketTrend, GameEvent, ContinentRelease, Character, RivalMovie, AwardType, ReleaseStrategy, AwardNominee } from '@/types/game';
 import { GENRES, BUDGET_TIERS, PHASE_DURATIONS } from '@/types/game';
 import { generateTalentPool, generateMovieTitle, generateFranchiseColors, generateRivalMovie, formatMoney } from '@/lib/gameUtils';
 
@@ -21,6 +21,8 @@ interface GameContextType {
   updateReleaseDate: (movieId: string, week: number, year: number) => void;
   setContinentReleases: (movieId: string, releases: ContinentRelease[], strategy: ReleaseStrategy) => void;
   clearSimulationResult: () => void;
+  sellToStreaming: (movieId: string, platform: string, amount: number) => void;
+  releaseOnOwnPlatform: (movieId: string) => void;
 }
 
 interface MovieConfig {
@@ -75,10 +77,13 @@ type GameAction =
   | { type: 'UPDATE_RELEASE_DATE'; movieId: string; week: number; year: number }
   | { type: 'SET_CONTINENT_RELEASES'; movieId: string; releases: ContinentRelease[]; strategy: ReleaseStrategy }
   | { type: 'ADD_RIVAL_MOVIE'; movie: RivalMovie }
-  | { type: 'CLEAR_SIMULATION_RESULT' };
+  | { type: 'CLEAR_SIMULATION_RESULT' }
+  | { type: 'LOAD_GAME'; state: GameState }
+  | { type: 'SELL_TO_STREAMING'; movieId: string; amount: number; platform: string }
+  | { type: 'RELEASE_ON_OWN_PLATFORM'; movieId: string };
 
 const initialState: GameState = {
-  studio: { name: 'Sike Entertainment', owner: 'Sikandar', level: 1, reputation: 50, cash: 50000000, totalRevenue: 0, facilities: { soundStages: 2, postProduction: 2, marketing: 2 }, totalAwardsWon: 0 },
+  studio: { name: 'Sike Entertainment', owner: 'Sikandar', level: 1, reputation: 50, cash: 50000000, totalRevenue: 0, facilities: { soundStages: 2, postProduction: 2, marketing: 2 }, totalAwardsWon: 0, totalStreamingRevenue: 0 },
   movies: [],
   talents: generateTalentPool(),
   characters: [],
@@ -109,115 +114,78 @@ const initialState: GameState = {
   currentYear: 2024,
   gameSpeed: 0,
   notifications: [],
+  awardHistory: [],
 };
 
-function calculateBoxOffice(movie: Movie, marketTrends: MarketTrend[], events: GameEvent[], currentWeek: number): Movie['boxOffice'] {
+function calculateDailyBoxOffice(movie: Movie, marketTrends: MarketTrend[], events: GameEvent[], currentWeek: number, dayReleased: number): DailyBoxOffice {
   const avgQuality = Object.values(movie.quality).reduce((a, b) => a + b, 0) / 9;
+  const audienceScore = movie.reviews?.audience || 50;
   
-  // Calculate trend multiplier based on all genres
   const genrePopularity = movie.genres.reduce((sum, g) => {
     const trend = marketTrends.find(t => t.genre === g);
     return sum + (trend ? trend.popularity : 100);
   }, 0) / (movie.genres.length || 1);
   
   const trendMultiplier = genrePopularity / 100;
-  
   const activeEvent = events.find(e => e.week === currentWeek);
   const eventMultiplier = activeEvent ? activeEvent.multiplier : 1;
 
-  const qualityMultiplier = 1 + (avgQuality / 150);
+  const qualityMultiplier = 1 + (avgQuality / 150) + (audienceScore / 200);
   const reReleaseMultiplier = movie.isReRelease ? 0.15 : 1;
-  const awardMultiplier = 1 + (movie.awards.length * 0.1); 
-  const studioMultiplier = 1 + (movie.studioReputationAtRelease ? movie.studioReputationAtRelease / 200 : 0.5); // Reputation boost
-  
-  const baseRevenue = movie.budget * 2.5 * qualityMultiplier * trendMultiplier * eventMultiplier * reReleaseMultiplier * awardMultiplier * studioMultiplier * (0.8 + Math.random() * 0.4);
-  const domestic = baseRevenue * 0.4;
-  const international = baseRevenue * 0.6;
-  const total = domestic + international;
-  
-  const daily: DailyBoxOffice[] = [];
-  const releaseDate = new Date(movie.releaseDate || new Date());
-  
-  for (let day = 1; day <= 140; day++) {
-    const currentDate = new Date(releaseDate);
-    currentDate.setDate(currentDate.getDate() + day - 1);
-    const dayOfWeek = currentDate.getDay();
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-    
-    let dayMultiplier = day <= 3 ? 3 : day <= 7 ? 1.8 : day <= 14 ? 0.9 : day <= 21 ? 0.5 : day <= 70 ? 0.25 : 0.1;
-    if (isWeekend) dayMultiplier *= 1.6;
-    
-    const dayRevenue = (total / 30) * dayMultiplier;
-    daily.push({ day, date: currentDate, domestic: Math.round(dayRevenue * 0.4), international: Math.round(dayRevenue * 0.6), total: Math.round(dayRevenue), weekend: isWeekend });
-  }
-  
-  return { domestic: Math.round(domestic), international: Math.round(international), total: Math.round(total), daily, openingWeekend: Math.round(daily.slice(0, 3).reduce((s, d) => s + d.total, 0)) };
-}
-
-function calculateContinentBoxOffice(movie: Movie, continent: Continent, marketingBudget: number, marketTrends: MarketTrend[], events: GameEvent[], currentWeek: number): ContinentRelease['boxOffice'] {
-  const avgQuality = Object.values(movie.quality).reduce((a, b) => a + b, 0) / 9;
-  
-  const genrePopularity = movie.genres.reduce((sum, g) => {
-    const trend = marketTrends.find(t => t.genre === g);
-    return sum + (trend ? trend.popularity : 100);
-  }, 0) / (movie.genres.length || 1);
-  
-  const trendMultiplier = genrePopularity / 100;
-  const activeEvent = events.find(e => e.week === currentWeek);
-  const eventMultiplier = activeEvent ? activeEvent.multiplier : 1;
-
-  const qualityMultiplier = 1 + (avgQuality / 150);
-  
-  // Strategy multipliers
-  let strategyMultiplier = 1;
-  if (movie.releaseStrategy === 'express') strategyMultiplier = 0.85; // -15% hype
-  if (movie.releaseStrategy === 'tentpole') strategyMultiplier = 1.2; // +20% reach
-
-  // Marketing boost: more budget = more revenue, but with diminishing returns
-  const marketingMultiplier = (0.5 + Math.min(1.5, (marketingBudget / (movie.budget * 0.1 + 1000000)))) * strategyMultiplier; 
-  
-  // Continent-specific bonuses
-  let continentBonus = 1;
-  if (continent === 'South America') continentBonus = 1.15; // Viral potential boost to base revenue
-  if (continent === 'Africa' || continent === 'Oceania') continentBonus = 1.1; // Passive income boost
-
   const awardMultiplier = 1 + (movie.awards.length * 0.1); 
   const studioMultiplier = 1 + (movie.studioReputationAtRelease ? movie.studioReputationAtRelease / 200 : 0.5);
   
-  const continentMultipliers: Record<Continent, number> = {
-    'North America': 1.2,
-    'Europe': 1.0,
-    'Asia': 1.3,
-    'South America': 0.6,
-    'Africa': 0.3,
-    'Oceania': 0.2
-  };
+  // Base opening target (total potential)
+  const baseOpeningTarget = movie.budget * 0.4 * qualityMultiplier * trendMultiplier * eventMultiplier * reReleaseMultiplier * awardMultiplier * studioMultiplier;
   
-  const baseRevenue = movie.budget * 0.8 * qualityMultiplier * trendMultiplier * eventMultiplier * marketingMultiplier * awardMultiplier * studioMultiplier * continentMultipliers[continent] * continentBonus * (0.8 + Math.random() * 0.4);
-  
-  const daily: DailyBoxOffice[] = [];
-  
-  // Longevity bonus for Asia
-  let dropRate = 1;
-  if (continent === 'Asia') dropRate = 0.85; // Slower drop off
-
-  // Opening weekend boost for North America
-  let openingBoost = 1;
-  if (continent === 'North America') openingBoost = 1.4;
-
-  for (let day = 1; day <= 140; day++) {
-    let dayMultiplier = day <= 3 ? 3 * openingBoost : day <= 7 ? 1.8 : day <= 14 ? 0.9 : day <= 21 ? 0.5 : day <= 70 ? 0.25 : 0.1;
-    
-    // Apply drop rate for days after opening weekend
-    if (day > 3) {
-      dayMultiplier *= Math.pow(dropRate, Math.floor((day - 3) / 7));
-    }
-
-    const dayRevenue = (baseRevenue / 30) * dayMultiplier;
-    daily.push({ day, date: new Date(), domestic: Math.round(dayRevenue * 0.5), international: Math.round(dayRevenue * 0.5), total: Math.round(dayRevenue), weekend: false });
+  // Day-based drop-off curve (More realistic)
+  let dayMultiplier = 1;
+  if (dayReleased === 1) dayMultiplier = 1.0;
+  else if (dayReleased <= 3) dayMultiplier = 0.95; // Weekend hold
+  else if (dayReleased <= 7) {
+    // Weekday drop
+    dayMultiplier = 0.5 * Math.pow(0.9, dayReleased - 3);
+  } else {
+    // Weekly drop-off
+    const week = Math.ceil(dayReleased / 7);
+    dayMultiplier = 0.3 * Math.pow(0.7, week - 1);
   }
+
+  const randomFactor = 0.7 + Math.random() * 0.6; // 0.7 to 1.3
   
-  return { total: Math.round(baseRevenue), daily };
+  const releaseDate = new Date(movie.releaseDate || new Date());
+  const currentDate = new Date(releaseDate);
+  currentDate.setDate(currentDate.getDate() + dayReleased - 1);
+  const dayOfWeek = currentDate.getDay();
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  
+  if (isWeekend) dayMultiplier *= 1.8;
+
+  let dailyTotal = (baseOpeningTarget / 3.5) * dayMultiplier * randomFactor;
+  
+  // Growth Cap: Daily collection cannot grow more than 1.5x of opening day (Day 1)
+  const openingDayOneEstimate = (baseOpeningTarget / 3.5);
+  dailyTotal = Math.min(dailyTotal, openingDayOneEstimate * 1.5);
+
+  return { 
+    day: dayReleased, 
+    date: currentDate, 
+    domestic: Math.round(dailyTotal * 0.45), 
+    international: Math.round(dailyTotal * 0.55), 
+    total: Math.round(dailyTotal), 
+    weekend: isWeekend 
+  };
+}
+
+function calculateBoxOffice(): Movie['boxOffice'] {
+  // This is now just for initialization
+  return { 
+    domestic: 0, 
+    international: 0, 
+    total: 0, 
+    daily: [], 
+    openingWeekend: 0 
+  };
 }
 
 function calculateReviews(movie: Movie): Movie['reviews'] {
@@ -364,86 +332,99 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
         let reputationBoost = 0;
         let awardsWonThisTick = 0;
+        let dailyStreamingRevenueTotal = 0;
+
         const updatedMovies = currentState.movies.map(movie => {
+          const updatedMovie = { ...movie };
+
           if (awardEvent?.type === 'ceremony') {
             const isWinner = awardEvent.winners?.some((w: AwardNominee) => w.projectId === movie.id);
             if (isWinner) {
               awardsWonThisTick++;
-              return { ...movie, awards: [...movie.awards, 'Oscar' as AwardType] }; // Using Oscar as generic winner for now
+              updatedMovie.awards = [...updatedMovie.awards, 'Oscar' as AwardType];
             }
           }
-          if (movie.phase === 'released') {
-            // Update continent-specific box office if applicable
-            if (movie.continentReleases) {
-              let movieUpdated = false;
-              const updatedReleases = movie.continentReleases.map(release => {
-                if (!release.released) {
-                  const isReady = release.releaseWeek && release.releaseYear && (newYear > release.releaseYear || (newYear === release.releaseYear && newWeek >= release.releaseWeek));
-                  if (isReady) {
-                    const boxOffice = calculateContinentBoxOffice(movie, release.continent, release.marketingBudget, currentState.marketTrends, currentState.events, currentState.currentWeek);
-                    movieUpdated = true;
-                    return { ...release, released: true, boxOffice };
-                  }
-                }
-                return release;
-              });
 
-              if (movieUpdated) {
-                const totalBoxOffice = updatedReleases.reduce((sum, r) => sum + r.boxOffice.total, 0);
-                return { 
-                  ...movie, 
-                  continentReleases: updatedReleases,
-                  boxOffice: {
-                    domestic: totalBoxOffice * 0.4,
-                    international: totalBoxOffice * 0.6,
-                    total: totalBoxOffice,
-                    daily: [], // Aggregate daily if needed, but keeping it simple for now
-                    openingWeekend: totalBoxOffice * 0.2
-                  }
+          if (updatedMovie.phase === 'released') {
+            // 1. Handle Theatrical Box Office
+            if (updatedMovie.releaseWindow !== 'streaming_exclusive' && !updatedMovie.isSoldToStreaming) {
+              const daysReleased = (updatedMovie.boxOffice?.daily?.length || 0) + 1;
+              const maxDays = (updatedMovie.theatricalWeeks || 10) * 7;
+              
+              if (daysReleased <= maxDays) {
+                const dailyBO = calculateDailyBoxOffice(updatedMovie, currentState.marketTrends, currentState.events, currentState.currentWeek, daysReleased);
+                dailyBO.date = new Date(newDate);
+                
+                const currentBoxOffice = updatedMovie.boxOffice || { domestic: 0, international: 0, total: 0, daily: [], openingWeekend: 0 };
+                const updatedDaily = [...currentBoxOffice.daily, dailyBO];
+                const newTotal = currentBoxOffice.total + dailyBO.total;
+                const newDomestic = currentBoxOffice.domestic + dailyBO.domestic;
+                const newInternational = currentBoxOffice.international + dailyBO.international;
+                
+                let openingWeekend = currentBoxOffice.openingWeekend;
+                if (daysReleased <= 3) {
+                  openingWeekend += dailyBO.total;
+                }
+
+                updatedMovie.boxOffice = {
+                  ...currentBoxOffice,
+                  total: newTotal,
+                  domestic: newDomestic,
+                  international: newInternational,
+                  daily: updatedDaily,
+                  openingWeekend
                 };
               }
             }
-            
-            const daysReleased = movie.boxOffice?.daily.length || 0;
-            const maxDays = movie.theatricalWeeks * 7;
-            if (daysReleased > maxDays) return movie;
-            return movie;
+
+            // 2. Handle Streaming Revenue (Hybrid or Exclusive)
+            if (updatedMovie.releaseWindow === 'hybrid' || updatedMovie.releaseWindow === 'streaming_exclusive') {
+              const baseViews = (updatedMovie.budget / 5000) * (updatedMovie.quality.marketing / 50);
+              const randomFactor = 0.8 + Math.random() * 0.4;
+              const dailyViews = baseViews * (updatedMovie.reviews?.audience || 50) / 100 * randomFactor;
+              const dailyRev = dailyViews * 0.05; // $0.05 per view
+              
+              updatedMovie.streamingViews = (updatedMovie.streamingViews || 0) + dailyViews;
+              updatedMovie.streamingRevenue = (updatedMovie.streamingRevenue || 0) + dailyRev;
+              dailyStreamingRevenueTotal += dailyRev;
+            }
+
+            return updatedMovie;
           }
           
           // If held, don't progress beyond marketing 100%
-          if (movie.isHeld && movie.phase === 'marketing' && movie.progress >= 100) {
-            return movie;
+          if (updatedMovie.isHeld && updatedMovie.phase === 'marketing' && updatedMovie.progress >= 100) {
+            return updatedMovie;
           }
 
-          // NEW: If post-production is done but no release date is set, stay at 100%
-          if (movie.phase === 'postProduction' && movie.progress >= 100 && (!movie.releaseWeek || !movie.releaseYear)) {
-            return movie;
+          // If post-production is done but no release date is set, stay at 100%
+          if (updatedMovie.phase === 'postProduction' && updatedMovie.progress >= 100 && (!updatedMovie.releaseWeek || !updatedMovie.releaseYear)) {
+            return updatedMovie;
           }
 
-          const phaseDuration = movie.phase === 'filming' ? movie.filmingWeeks * 7 : PHASE_DURATIONS[movie.phase];
-          const newDaysInPhase = movie.daysInPhase + 1;
+          const phaseDuration = updatedMovie.phase === 'filming' ? updatedMovie.filmingWeeks * 7 : PHASE_DURATIONS[updatedMovie.phase];
+          const newDaysInPhase = updatedMovie.daysInPhase + 1;
           let newProgress = Math.min(100, (newDaysInPhase / phaseDuration) * 100);
           
           // Special handling for marketing to ensure it hits 100% at release
-          if (movie.phase === 'marketing' && movie.releaseWeek && movie.releaseYear) {
-            const isReleaseDay = (newYear > movie.releaseYear || (newYear === movie.releaseYear && newWeek >= movie.releaseWeek));
+          if (updatedMovie.phase === 'marketing' && updatedMovie.releaseWeek && updatedMovie.releaseYear) {
+            const isReleaseDay = (newYear > updatedMovie.releaseYear || (newYear === updatedMovie.releaseYear && newWeek >= updatedMovie.releaseWeek));
             if (isReleaseDay) newProgress = 100;
             else newProgress = Math.min(99, newProgress); // Stay at 99 until release
           }
           
           if (newProgress >= 100) {
             const phases: ProductionPhase[] = ['writing', 'preProduction', 'locations', 'filming', 'postProduction', 'marketing', 'released'];
-            const currentIndex = phases.indexOf(movie.phase);
+            const currentIndex = phases.indexOf(updatedMovie.phase);
             const nextPhase = phases[currentIndex + 1];
             
-            if (movie.phase === 'postProduction' && newProgress >= 100) {
-              // Only notify once
-              if (!movie.releaseWeek) {
+            if (updatedMovie.phase === 'postProduction' && newProgress >= 100) {
+              if (!updatedMovie.releaseWeek) {
                 currentState.notifications.push({
-                  id: `post-done-${movie.id}`,
+                  id: `post-done-${updatedMovie.id}`,
                   type: 'success',
                   title: 'Post-Production Complete',
-                  message: `${movie.title} is ready for release! Set your global distribution strategy.`,
+                  message: `${updatedMovie.title} is ready for release! Set your global distribution strategy.`,
                   date: newDate,
                   read: false
                 });
@@ -451,56 +432,40 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             }
 
             if (nextPhase === 'released') {
-              // Check if it's the right week/year to release (Legacy or first continent)
-              const hasContinentReleases = movie.continentReleases && movie.continentReleases.length > 0;
-              const isReadyToRelease = hasContinentReleases 
-                ? movie.continentReleases?.some(r => r.releaseWeek && r.releaseYear && (newYear > r.releaseYear || (newYear === r.releaseYear && newWeek >= r.releaseWeek)))
-                : movie.releaseWeek && movie.releaseYear && (newYear > movie.releaseYear || (newYear === movie.releaseYear && newWeek >= movie.releaseWeek));
+              const isReadyToRelease = updatedMovie.releaseWeek && updatedMovie.releaseYear && (newYear > updatedMovie.releaseYear || (newYear === updatedMovie.releaseYear && newWeek >= updatedMovie.releaseWeek));
               
               if (!isReadyToRelease) {
-                return { ...movie, progress: 100, daysInPhase: newDaysInPhase };
+                return { ...updatedMovie, progress: 100, daysInPhase: newDaysInPhase };
               }
               
-              if (movie.isHeld) {
-                return { ...movie, progress: 100, daysInPhase: newDaysInPhase };
+              if (updatedMovie.isHeld) {
+                return { ...updatedMovie, progress: 100, daysInPhase: newDaysInPhase };
               }
 
-              let boxOffice: Movie['boxOffice'];
-              let continentReleases = movie.continentReleases;
-
-              if (hasContinentReleases) {
-                continentReleases = movie.continentReleases!.map(r => {
-                  const isReady = r.releaseWeek && r.releaseYear && (newYear > r.releaseYear || (newYear === r.releaseYear && newWeek >= r.releaseWeek));
-                  if (isReady && !r.released) {
-                    const bo = calculateContinentBoxOffice(movie, r.continent, r.marketingBudget, currentState.marketTrends, currentState.events, currentState.currentWeek);
-                    return { ...r, released: true, boxOffice: bo };
-                  }
-                  return r;
-                });
-                const total = continentReleases.reduce((sum, r) => sum + (r.boxOffice?.total || 0), 0);
-                boxOffice = {
-                  domestic: total * 0.4,
-                  international: total * 0.6,
-                  total: total,
-                  daily: [],
-                  openingWeekend: total * 0.2
-                };
-              } else {
-                boxOffice = calculateBoxOffice(movie, currentState.marketTrends, currentState.events, currentState.currentWeek);
-              }
-
-              const reviews = calculateReviews(movie);
-              const movieWithReviews = { ...movie, reviews };
+              const boxOffice = calculateBoxOffice();
+              const reviews = calculateReviews(updatedMovie as Movie);
+              const movieWithReviews = { ...updatedMovie, reviews };
               const awards = calculateAwards(movieWithReviews as Movie);
               
-              // Awards impact reputation immediately
               reputationBoost += awards.length * 2;
               
-              return { ...movie, phase: 'released' as const, progress: 100, releaseDate: newDate, boxOffice, reviews, awards, studioReputationAtRelease: currentState.studio.reputation, continentReleases };
+              return { 
+                ...updatedMovie, 
+                phase: 'released' as const, 
+                progress: 100, 
+                releaseDate: newDate, 
+                boxOffice, 
+                reviews, 
+                awards, 
+                studioReputationAtRelease: currentState.studio.reputation,
+                streamingRevenue: 0,
+                streamingViews: 0,
+                isSoldToStreaming: false
+              };
             }
-            return { ...movie, phase: nextPhase as ProductionPhase, progress: 0, daysInPhase: 0 };
+            return { ...updatedMovie, phase: nextPhase as ProductionPhase, progress: 0, daysInPhase: 0 };
           }
-          return { ...movie, progress: newProgress, daysInPhase: newDaysInPhase };
+          return { ...updatedMovie, progress: newProgress, daysInPhase: newDaysInPhase };
         });
 
         // Rival Studio Logic: Check for releases every week (Sunday)
@@ -546,9 +511,18 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         }
         
         const streamingRevenue = updatedMovies.filter(m => m.phase === 'released' && m.boxOffice).reduce((sum, m) => sum + (m.boxOffice!.total * 0.0005), 0);
-        
+        const totalDailyRevenue = dailyStreamingRevenueTotal + streamingRevenue;
+
         // Simulation Result tracking (only for the last day of simulation or if awards happened)
         if (i === action.days - 1 || awardEvent) {
+          if (awardEvent) {
+            currentState.awardHistory.push({
+              year: newYear,
+              type: awardEvent.type,
+              results: awardEvent.nominees || awardEvent.winners || []
+            });
+          }
+          
           const newsPool = [
             "New Movie Announced",
             "Actor Gains Popularity",
@@ -587,8 +561,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           lastSimulationResult: simulationResult || currentState.lastSimulationResult,
           studio: { 
             ...currentState.studio, 
-            cash: currentState.studio.cash + streamingRevenue, 
-            totalRevenue: currentState.studio.totalRevenue + streamingRevenue,
+            cash: currentState.studio.cash + totalDailyRevenue, 
+            totalRevenue: currentState.studio.totalRevenue + totalDailyRevenue,
+            totalStreamingRevenue: currentState.studio.totalStreamingRevenue + dailyStreamingRevenueTotal,
             reputation: Math.min(100, currentState.studio.reputation + reputationBoost),
             totalAwardsWon: currentState.studio.totalAwardsWon + awardsWonThisTick
           } 
@@ -732,6 +707,37 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, rivalMovies: [action.movie, ...state.rivalMovies].slice(0, 100) };
     case 'CLEAR_SIMULATION_RESULT':
       return { ...state, lastSimulationResult: undefined };
+    case 'LOAD_GAME':
+      return { ...initialState, ...action.state };
+    case 'SELL_TO_STREAMING':
+      return {
+        ...state,
+        studio: {
+          ...state.studio,
+          cash: state.studio.cash + action.amount,
+          totalRevenue: state.studio.totalRevenue + action.amount,
+          totalStreamingRevenue: state.studio.totalStreamingRevenue + action.amount
+        },
+        movies: state.movies.map(m => m.id === action.movieId ? {
+          ...m,
+          isSoldToStreaming: true,
+          streamingPlatform: action.platform,
+          streamingRevenue: (m.streamingRevenue || 0) + action.amount,
+          phase: 'released'
+        } : m)
+      };
+    case 'RELEASE_ON_OWN_PLATFORM':
+      return {
+        ...state,
+        movies: state.movies.map(m => m.id === action.movieId ? {
+          ...m,
+          releaseWindow: 'streaming_exclusive',
+          phase: 'released',
+          releaseDate: state.currentDate,
+          releaseWeek: state.currentWeek,
+          releaseYear: state.currentYear
+        } : m)
+      };
     default:
       return state;
   }
@@ -745,7 +751,38 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     lastTick.current = Date.now();
+    
+    // Load game on mount
+    const saved = localStorage.getItem('sike_entertainment_save');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        // Convert date strings back to Date objects
+        parsed.currentDate = new Date(parsed.currentDate);
+        parsed.movies = parsed.movies.map((m: any) => ({
+          ...m,
+          releaseDate: m.releaseDate ? new Date(m.releaseDate) : undefined,
+          boxOffice: m.boxOffice ? {
+            ...m.boxOffice,
+            daily: m.boxOffice.daily.map((d: any) => ({ ...d, date: new Date(d.date) }))
+          } : undefined,
+          streamingRevenue: m.streamingRevenue || 0,
+          isSoldToStreaming: m.isSoldToStreaming || false,
+          streamingViews: m.streamingViews || 0
+        }));
+        dispatch({ type: 'LOAD_GAME', state: parsed });
+      } catch (e) {
+        console.error("Failed to load game", e);
+      }
+    }
   }, []);
+
+  // Save game on state change
+  useEffect(() => {
+    if (state !== initialState) {
+      localStorage.setItem('sike_entertainment_save', JSON.stringify(state));
+    }
+  }, [state]);
 
   useEffect(() => {
     if (state.gameSpeed === 0) return;
@@ -847,6 +884,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       releaseWeek: config.releaseWeek,
       releaseYear: config.releaseYear,
       theatricalWeeks: 10,
+      streamingRevenue: 0,
+      isSoldToStreaming: false,
+      streamingViews: 0
     };
     
     dispatch({ type: 'START_MOVIE', movie: newMovie, newCharacters });
@@ -965,6 +1005,16 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
 
   const clearSimulationResult = useCallback(() => dispatch({ type: 'CLEAR_SIMULATION_RESULT' }), []);
 
+  const sellToStreaming = useCallback((movieId: string, platform: string, amount: number) => {
+    dispatch({ type: 'SELL_TO_STREAMING', movieId, platform, amount });
+    dispatch({ type: 'ADD_NOTIFICATION', notification: { id: `stream-${Date.now()}`, type: 'success', title: 'Movie Sold', message: `Sold to ${platform} for ${formatMoney(amount)}`, date: state.currentDate, read: false } });
+  }, [state.currentDate]);
+
+  const releaseOnOwnPlatform = useCallback((movieId: string) => {
+    dispatch({ type: 'RELEASE_ON_OWN_PLATFORM', movieId });
+    dispatch({ type: 'ADD_NOTIFICATION', notification: { id: `own-stream-${Date.now()}`, type: 'success', title: 'Streaming Release', message: 'Released on your own platform!', date: state.currentDate, read: false } });
+  }, [state.currentDate]);
+
   return (
     <GameContext.Provider value={{ 
       state, 
@@ -983,7 +1033,9 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       holdMovieRelease, 
       updateReleaseDate,
       setContinentReleases,
-      clearSimulationResult
+      clearSimulationResult,
+      sellToStreaming,
+      releaseOnOwnPlatform
     }}>
       {children}
     </GameContext.Provider>

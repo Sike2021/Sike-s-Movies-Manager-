@@ -165,7 +165,7 @@ export function simulateWeek(movie: BoxOfficeMovie): BoxOfficeMovie {
   else if (weekIndex === 1) dropRate = 0.5; // Week 2
   else if (weekIndex === 2) dropRate = 0.3; // Week 3
 
-  const lastWeekCollection = updatedMovie.weeklyCollection.length > 0 
+  const lastWeekCollection = (updatedMovie.weeklyCollection?.length || 0) > 0 
     ? updatedMovie.weeklyCollection[updatedMovie.weeklyCollection.length - 1] 
     : updatedMovie.opening;
 
@@ -212,8 +212,8 @@ export function simulateAllMovies(movies: BoxOfficeMovie[], days: number): BoxOf
  */
 export function getMovieReport(movie: BoxOfficeMovie) {
   const lastCollection = movie.releaseType === "weekly" 
-    ? (movie.weeklyCollection[movie.weeklyCollection.length - 1] || 0)
-    : (movie.dailyCollection[movie.dailyCollection.length - 1] || 0);
+    ? (movie.weeklyCollection?.[movie.weeklyCollection.length - 1] || 0)
+    : (movie.dailyCollection?.[movie.dailyCollection.length - 1] || 0);
 
   return {
     title: movie.title,

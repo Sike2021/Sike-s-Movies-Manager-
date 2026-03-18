@@ -31,7 +31,7 @@ interface MoviesProps {
 }
 
 export function Movies({ onNavigate }: MoviesProps) {
-  const { state, extendTheatricalRun, reReleaseMovie, holdMovieRelease, updateReleaseDate, setContinentReleases } = useGame();
+  const { state, extendTheatricalRun, reReleaseMovie, holdMovieRelease, updateReleaseDate, setContinentReleases, sellToStreaming, releaseOnOwnPlatform } = useGame();
   const [activeTab, setActiveTab] = useState('production');
   const [releaseConfigMovie, setReleaseConfigMovie] = useState<Movie | null>(null);
   const [globalReleaseWeek, setGlobalReleaseWeek] = useState(state.currentWeek + 4);
@@ -136,9 +136,10 @@ export function Movies({ onNavigate }: MoviesProps) {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="w-full grid grid-cols-3 bg-[var(--bg-card)] p-1 rounded-xl">
+          <TabsList className="w-full grid grid-cols-4 bg-[var(--bg-card)] p-1 rounded-xl">
             <TabsTrigger value="my-movies" className="rounded-lg data-[state=active]:bg-[var(--gold)] data-[state=active]:text-black">My Movies</TabsTrigger>
             <TabsTrigger value="production" className="rounded-lg data-[state=active]:bg-[var(--gold)] data-[state=active]:text-black">In Production</TabsTrigger>
+            <TabsTrigger value="streaming" className="rounded-lg data-[state=active]:bg-[var(--gold)] data-[state=active]:text-black">Streaming</TabsTrigger>
             <TabsTrigger value="past" className="rounded-lg data-[state=active]:bg-[var(--gold)] data-[state=active]:text-black">Past</TabsTrigger>
           </TabsList>
 
@@ -237,6 +238,89 @@ export function Movies({ onNavigate }: MoviesProps) {
               </div>
             ))}
             {inProduction.length === 0 && <EmptyState />}
+          </TabsContent>
+
+          <TabsContent value="streaming" className="mt-4 space-y-3">
+            {state.movies.filter(m => m.phase === 'released' || (m.phase === 'postProduction' && m.progress >= 100)).map(movie => (
+              <div key={movie.id} className="movie-card p-4 space-y-3">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="font-semibold text-lg">{movie.title}</h3>
+                    <p className="text-[10px] text-[var(--text-muted)]">{movie.genres.join(', ')} • {movie.movieType}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-[var(--text-muted)]">Budget: {formatMoney(movie.budget)}</p>
+                    {movie.isSoldToStreaming ? (
+                      <span className="text-[8px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full border border-green-500/30">
+                        Sold to {movie.streamingPlatform}
+                      </span>
+                    ) : movie.releaseWindow === 'streaming_exclusive' ? (
+                      <span className="text-[8px] bg-blue-500/20 text-blue-400 px-2 py-0.5 rounded-full border border-blue-500/30">
+                        On Sike+
+                      </span>
+                    ) : (
+                      <span className="text-[8px] bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full border border-yellow-500/30">
+                        Available
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {movie.streamingViews !== undefined && (
+                  <div className="grid grid-cols-2 gap-4 py-2 border-y border-[var(--border)]">
+                    <div>
+                      <p className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">Streaming Views</p>
+                      <p className="font-mono text-xs">{(movie.streamingViews / 1000000).toFixed(2)}M</p>
+                    </div>
+                    <div>
+                      <p className="text-[8px] uppercase tracking-wider text-[var(--text-muted)]">Streaming Revenue</p>
+                      <p className="font-mono text-xs text-green-400">{formatMoney(movie.streamingRevenue || 0)}</p>
+                    </div>
+                  </div>
+                )}
+
+                {!movie.isSoldToStreaming && movie.releaseWindow !== 'streaming_exclusive' && (
+                  <div className="grid grid-cols-3 gap-2 pt-2">
+                    <button 
+                      onClick={() => {
+                        const offer = movie.budget * (1.2 + Math.random() * 0.8);
+                        sellToStreaming(movie.id, 'Neflex', offer);
+                      }}
+                      className="flex flex-col items-center justify-center p-2 rounded-lg bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+                    >
+                      <Tv className="w-4 h-4 text-red-400 mb-1" />
+                      <span className="text-[8px] font-bold">Sell to Neflex</span>
+                      <span className="text-[7px] text-red-300">~{formatMoney(movie.budget * 1.5)}</span>
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const offer = movie.budget * (1.1 + Math.random() * 0.7);
+                        sellToStreaming(movie.id, 'Amazing', offer);
+                      }}
+                      className="flex flex-col items-center justify-center p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 hover:bg-blue-500/20 transition-colors"
+                    >
+                      <Tv className="w-4 h-4 text-blue-400 mb-1" />
+                      <span className="text-[8px] font-bold">Sell to Amazing</span>
+                      <span className="text-[7px] text-blue-300">~{formatMoney(movie.budget * 1.3)}</span>
+                    </button>
+                    <button 
+                      onClick={() => releaseOnOwnPlatform(movie.id)}
+                      className="flex flex-col items-center justify-center p-2 rounded-lg bg-[var(--gold)]/10 border border-[var(--gold)]/20 hover:bg-[var(--gold)]/20 transition-colors"
+                    >
+                      <Globe className="w-4 h-4 text-[var(--gold)] mb-1" />
+                      <span className="text-[8px] font-bold">Release on Sike+</span>
+                      <span className="text-[7px] text-[var(--gold)]">Daily Revenue</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+            {state.movies.filter(m => m.phase === 'released' || (m.phase === 'postProduction' && m.progress >= 100)).length === 0 && (
+              <div className="text-center py-12 text-[var(--text-muted)]">
+                <Tv className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                <p>No movies ready for streaming yet.</p>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="past" className="mt-4 space-y-3">

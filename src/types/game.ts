@@ -12,6 +12,13 @@ export type TalentType = 'actor' | 'director' | 'writer' | 'cinematographer' | '
 export type AwardType = 'Oscar' | 'Emmy' | 'Golden Globe' | 'Critics Choice' | 'notified';
 export type Continent = 'North America' | 'South America' | 'Europe' | 'Asia' | 'Africa' | 'Oceania';
 export type ReleaseStrategy = 'express' | 'standard' | 'tentpole';
+export type ReleaseWindow = 'theatrical' | 'streaming_exclusive' | 'hybrid';
+
+export interface AwardResult {
+  year: number;
+  type: 'nominations' | 'ceremony';
+  results: AwardNominee[];
+}
 
 export interface ContinentRelease {
   continent: Continent;
@@ -112,7 +119,7 @@ export interface Movie {
   releaseDate?: Date;
   releaseWeek?: number;
   releaseYear?: number;
-  releaseWindow: 'theatrical' | 'premium_vod' | 'streaming';
+  releaseWindow: ReleaseWindow;
   boxOffice?: {
     domestic: number;
     international: number;
@@ -120,6 +127,10 @@ export interface Movie {
     daily: DailyBoxOffice[];
     openingWeekend: number;
   };
+  streamingRevenue: number;
+  isSoldToStreaming: boolean;
+  streamingPlatform?: string;
+  streamingViews: number;
   reviews?: { critic: number; audience: number };
   movieType: 'standalone' | 'franchise' | 'sequel' | 'teamup' | 'series' | 'special' | 'spinoff' | 'crossover';
   specialType?: 'Christmas' | 'Anniversary' | 'Mini Series';
@@ -168,6 +179,7 @@ export interface Studio {
   reputation: number;
   cash: number;
   totalRevenue: number;
+  totalStreamingRevenue: number;
   facilities: { soundStages: number; postProduction: number; marketing: number };
   totalAwardsWon: number;
 }
@@ -232,6 +244,7 @@ export interface GameState {
   gameSpeed: number;
   notifications: Notification[];
   lastSimulationResult?: SimulationResult;
+  awardHistory: AwardResult[];
 }
 
 export const GENRES: Genre[] = [

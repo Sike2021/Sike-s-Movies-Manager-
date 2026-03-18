@@ -72,7 +72,7 @@ export function SimulationPopup() {
                     {result.awards.type === 'nominations' ? '🏆 Nominations Announced!' : '⭐ Awards Ceremony Results!'}
                   </p>
                   <div className="space-y-2">
-                    {(result.awards.nominees || result.awards.winners)?.slice(0, 5).map((a, i) => (
+                    {(result.awards.nominees || result.awards.winners || []).slice(0, 5).map((a, i) => (
                       <div key={i} className="text-xs flex justify-between items-center">
                         <span className="text-white/60">{a.category}</span>
                         <span className="font-bold text-white">

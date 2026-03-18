@@ -1,6 +1,6 @@
 import { useGame } from '@/context/GameContext';
 import { formatMoney } from '@/lib/gameUtils';
-import { ChevronLeft, TrendingUp, DollarSign, Film, Star, BarChart3, PieChart, Users } from 'lucide-react';
+import { ChevronLeft, TrendingUp, DollarSign, Film, Star, BarChart3, PieChart, Users, Trophy } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { type DailyBoxOffice } from '@/types/game';
@@ -54,10 +54,11 @@ export function Stats({ onNavigate }: StatsProps) {
         </div>
 
         <Tabs defaultValue="boxoffice" className="w-full">
-          <TabsList className="w-full grid grid-cols-4 bg-[var(--bg-card)] p-1 rounded-xl">
+          <TabsList className="w-full grid grid-cols-5 bg-[var(--bg-card)] p-1 rounded-xl">
             <TabsTrigger value="boxoffice" className="rounded-lg data-[state=active]:bg-[var(--gold)] data-[state=active]:text-black"><BarChart3 className="w-4 h-4 mr-1" /> Box Office</TabsTrigger>
             <TabsTrigger value="movies" className="rounded-lg data-[state=active]:bg-[var(--gold)] data-[state=active]:text-black"><Film className="w-4 h-4 mr-1" /> Movies</TabsTrigger>
             <TabsTrigger value="genres" className="rounded-lg data-[state=active]:bg-[var(--gold)] data-[state=active]:text-black"><PieChart className="w-4 h-4 mr-1" /> Genres</TabsTrigger>
+            <TabsTrigger value="awards" className="rounded-lg data-[state=active]:bg-[var(--gold)] data-[state=active]:text-black"><Trophy className="w-4 h-4 mr-1" /> Awards</TabsTrigger>
             <TabsTrigger value="rivals" className="rounded-lg data-[state=active]:bg-[var(--gold)] data-[state=active]:text-black"><Users className="w-4 h-4 mr-1" /> Rivals</TabsTrigger>
           </TabsList>
 
@@ -125,6 +126,29 @@ export function Stats({ onNavigate }: StatsProps) {
             {releasedMovies.length === 0 && <div className="card p-8 text-center"><p className="text-[var(--text-muted)]">No genre data yet</p></div>}
           </TabsContent>
 
+          <TabsContent value="awards" className="mt-4 space-y-4">
+            {(state.awardHistory?.length || 0) > 0 ? [...state.awardHistory].reverse().map((award, i) => (
+              <div key={i} className="card p-4 space-y-3">
+                <div className="flex justify-between items-center border-b border-white/10 pb-2">
+                  <h3 className="font-bold text-[var(--gold)]">{award.type === 'nominations' ? 'Nominations' : 'Ceremony'}</h3>
+                  <span className="text-xs text-[var(--text-muted)]">Year {award.year}</span>
+                </div>
+                <div className="space-y-2">
+                  {award.results.map((res, j) => (
+                    <div key={j} className="flex justify-between items-center text-sm">
+                      <span className="text-[var(--text-secondary)]">{res.category}</span>
+                      <span className="font-medium">{state.movies.find(m => m.id === res.projectId)?.title || 'Unknown'}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )) : (
+              <div className="text-center py-12 text-[var(--text-muted)]">
+                <Trophy className="w-12 h-12 mx-auto mb-4 opacity-20" />
+                <p>No awards history yet.</p>
+              </div>
+            )}
+          </TabsContent>
           <TabsContent value="rivals" className="mt-4 space-y-4">
             <div className="space-y-3">
               <h3 className="text-sm font-semibold text-[var(--text-secondary)] px-1">Studio Leaderboard</h3>

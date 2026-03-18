@@ -28,7 +28,10 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 function GameContent() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('setup');
+  const [currentScreen, setCurrentScreen] = useState<Screen>(() => {
+    const saved = localStorage.getItem('sike_entertainment_save');
+    return saved ? 'dashboard' : 'setup';
+  });
   const [previousScreen, setPreviousScreen] = useState<Screen>('setup');
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
 
