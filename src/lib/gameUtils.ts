@@ -237,16 +237,24 @@ export function generateTalentPool(): Talent[] {
 }
 
 export function generateRivalMovie(week: number, year: number): RivalMovie {
-  const studios = ['Warner Bros.', 'Disney', 'Universal', 'Paramount', 'Sony', 'Netflix', 'Apple TV+', 'A24'];
-  const genres: Genre[] = ['Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi', 'Superhero'];
+  const studios = ['Warner Bros.', 'Disney', 'Universal', 'Paramount', 'Sony', 'Netflix', 'Apple TV+', 'A24', 'SigNify By Sike', 'Lionsgate', 'MGM', 'Blumhouse'];
+  const genres: Genre[] = ['Action', 'Comedy', 'Drama', 'Horror', 'Sci-Fi', 'Superhero', 'Thriller', 'Animation', 'Fantasy', 'Crime'];
   const studioName = studios[Math.floor(Math.random() * studios.length)];
   const genre = genres[Math.floor(Math.random() * genres.length)];
-  const title = generateMovieTitle(genre);
-  const quality = Math.floor(40 + Math.random() * 55);
-  const budget = Math.floor(50000000 + Math.random() * 200000000);
   
-  const openingWeekend = (budget * (quality / 100)) * (0.2 + Math.random() * 0.3);
-  const totalBoxOffice = openingWeekend * (2.5 + Math.random() * 2);
+  const prefixes = ['The', 'Return of the', 'Rise of the', 'Dawn of', 'Legacy of', 'Shadow of', 'Last', 'Final', 'Beyond', 'Into the'];
+  const usePrefix = Math.random() > 0.6;
+  const baseTitle = generateMovieTitle(genre);
+  const title = usePrefix ? `${prefixes[Math.floor(Math.random() * prefixes.length)]} ${baseTitle}` : baseTitle;
+  
+  const quality = Math.floor(45 + Math.random() * 50);
+  const budget = Math.floor(30000000 + Math.random() * 250000000);
+  
+  // More dynamic box office based on quality and budget
+  const qualityMultiplier = 0.5 + (quality / 100) * 2; // 0.5 to 2.5
+  const budgetMultiplier = 0.8 + Math.random() * 0.4;
+  const openingWeekend = (budget * 0.2) * qualityMultiplier * budgetMultiplier;
+  const totalBoxOffice = openingWeekend * (2.2 + Math.random() * 3);
   
   return {
     id: `rival-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`,
@@ -254,9 +262,13 @@ export function generateRivalMovie(week: number, year: number): RivalMovie {
     studioName,
     genres: [genre],
     quality,
+    budget,
     releaseWeek: week,
     releaseYear: year,
-    boxOffice: totalBoxOffice
+    boxOffice: totalBoxOffice,
+    director: generateName(),
+    leadActor: generateName(),
+    leadActress: generateName()
   };
 }
 

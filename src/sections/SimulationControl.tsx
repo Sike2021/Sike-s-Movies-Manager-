@@ -1,6 +1,6 @@
 import { useGame } from '@/context/GameContext';
 import { formatDate } from '@/lib/gameUtils';
-import { ChevronLeft, Play, Pause, FastForward, Zap } from 'lucide-react';
+import { ChevronLeft, FastForward } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface SimulationControlProps {
@@ -8,7 +8,7 @@ interface SimulationControlProps {
 }
 
 export function SimulationControl({ onBack }: SimulationControlProps) {
-  const { state, setGameSpeed } = useGame();
+  const { state, simulateTime } = useGame();
   const upcomingEvents = state.events.filter(e => e.week > state.currentWeek).slice(0, 5);
 
   return (
@@ -27,22 +27,34 @@ export function SimulationControl({ onBack }: SimulationControlProps) {
             <span className="text-sm text-[var(--text-secondary)]">Year {state.currentYear}</span>
             <span className="text-sm text-[var(--text-secondary)]">Week {state.currentWeek % 52 || 52}</span>
           </div>
-        </div>
-
-        <div className="card p-4">
-          <p className="text-sm text-[var(--text-secondary)] mb-3">Game Speed</p>
-          <div className="grid grid-cols-4 gap-2">
-            <button onClick={() => setGameSpeed(0)} className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${state.gameSpeed === 0 ? 'bg-[var(--gold)] text-black' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'}`}>
-              <Pause className="w-5 h-5" /><span className="text-xs">Pause</span>
+          <div className="grid grid-cols-2 gap-2 mt-4">
+            <button 
+              onClick={() => simulateTime(1)}
+              className="py-3 bg-[var(--gold)] text-black font-bold rounded-xl hover:brightness-110 flex items-center justify-center gap-2 transition-all active:scale-95 text-sm"
+            >
+              <FastForward className="w-4 h-4" />
+              1 Week
             </button>
-            <button onClick={() => setGameSpeed(1)} className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${state.gameSpeed === 1 ? 'bg-[var(--gold)] text-black' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'}`}>
-              <Play className="w-5 h-5" /><span className="text-xs">1x</span>
+            <button 
+              onClick={() => simulateTime(2)}
+              className="py-3 bg-[var(--gold)]/80 text-black font-bold rounded-xl hover:brightness-110 flex items-center justify-center gap-2 transition-all active:scale-95 text-sm"
+            >
+              <FastForward className="w-4 h-4" />
+              2 Weeks
             </button>
-            <button onClick={() => setGameSpeed(2)} className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${state.gameSpeed === 2 ? 'bg-[var(--gold)] text-black' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'}`}>
-              <FastForward className="w-5 h-5" /><span className="text-xs">2x</span>
+            <button 
+              onClick={() => simulateTime(4)}
+              className="py-3 bg-[var(--gold)]/60 text-black font-bold rounded-xl hover:brightness-110 flex items-center justify-center gap-2 transition-all active:scale-95 text-sm"
+            >
+              <FastForward className="w-4 h-4" />
+              1 Month
             </button>
-            <button onClick={() => setGameSpeed(3)} className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${state.gameSpeed === 3 ? 'bg-[var(--gold)] text-black' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'}`}>
-              <Zap className="w-5 h-5" /><span className="text-xs">3x</span>
+            <button 
+              onClick={() => simulateTime(12)}
+              className="py-3 bg-[var(--gold)]/40 text-black font-bold rounded-xl hover:brightness-110 flex items-center justify-center gap-2 transition-all active:scale-95 text-sm"
+            >
+              <FastForward className="w-4 h-4" />
+              3 Months
             </button>
           </div>
         </div>

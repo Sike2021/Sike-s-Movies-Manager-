@@ -8,12 +8,12 @@ interface GameContextType {
   startMovieProduction: (config: MovieConfig) => void;
   hireTalent: (talentId: string) => void;
   fireTalent: (talentId: string) => void;
-  setGameSpeed: (speed: number) => void;
   simulateTime: (weeks: number) => void;
   upgradeFacility: (facility: 'soundStages' | 'postProduction' | 'marketing') => void;
   createFranchise: (name: string) => string;
   createUniverse: (name: string) => string;
   setupGame: (studioName: string, startingCash: number) => void;
+  resetGame: () => void;
   getSequelData: (parentId: string) => Partial<MovieConfig> | null;
   extendTheatricalRun: (movieId: string) => void;
   reReleaseMovie: (movieId: string) => void;
@@ -49,7 +49,7 @@ interface MovieConfig {
   franchiseId?: string;
   universeId?: string;
   sequelTo?: string;
-  characters: { name: string, role: 'Hero' | 'Villain' | 'Sidekick' | 'Supporting' | 'Cameo', id?: string, gender?: 'Male' | 'Female' | 'Any' }[];
+  characters: { name: string, role: 'Hero' | 'Villain' | 'Sidekick' | 'Supporting' | 'Cameo', id?: string, gender?: 'Male' | 'Female' | 'Any', actorId?: string }[];
   season?: number;
   episodes?: number;
   scenesPerEpisode?: number;
@@ -63,7 +63,6 @@ type GameAction =
   | { type: 'START_MOVIE'; movie: Movie; newCharacters: Character[] }
   | { type: 'HIRE_TALENT'; talentId: string; cost: number }
   | { type: 'FIRE_TALENT'; talentId: string }
-  | { type: 'SET_GAME_SPEED'; speed: number }
   | { type: 'UPDATE_MARKET_TRENDS' }
   | { type: 'ADD_NOTIFICATION'; notification: Notification }
   | { type: 'ADD_REVENUE'; amount: number }
@@ -81,6 +80,7 @@ type GameAction =
   | { type: 'CLEAR_SIMULATION_RESULT' }
   | { type: 'SET_DIFFICULTY'; difficulty: Difficulty }
   | { type: 'LOAD_GAME'; state: GameState }
+  | { type: 'RESET_GAME' }
   | { type: 'SELL_TO_STREAMING'; movieId: string; amount: number; platform: string }
   | { type: 'RELEASE_ON_OWN_PLATFORM'; movieId: string };
 
@@ -114,7 +114,6 @@ const initialState: GameState = {
   currentDate: new Date(2024, 0, 1),
   currentWeek: 1,
   currentYear: 2024,
-  gameSpeed: 0,
   difficulty: 'easy',
   notifications: [],
   awardHistory: [],
@@ -351,7 +350,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         let awardsWonThisTick = 0;
         let dailyStreamingRevenueTotal = 0;
 
-        const updatedMovies = currentState.movies.map(movie => {
+        // Track which talents are busy in this tick
+        const busyTalentIds = new Set<string>();
+
+        const updatedMovies = currentState.movies.map((movie) => {
           const updatedMovie = { ...movie };
 
           if (awardEvent?.type === 'ceremony') {
@@ -417,6 +419,21 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           // If post-production is done but no release date is set, stay at 100%
           if (updatedMovie.phase === 'postProduction' && updatedMovie.progress >= 100 && (!updatedMovie.releaseWeek || !updatedMovie.releaseYear)) {
             return updatedMovie;
+          }
+
+          // Check if talents are busy with OTHER movies during filming
+          if (updatedMovie.phase === 'filming') {
+            const movieTalents = [updatedMovie.director, updatedMovie.writer, updatedMovie.cinematographer, updatedMovie.editor, updatedMovie.composer, updatedMovie.producer, updatedMovie.vfxSupervisor, updatedMovie.productionDesigner, updatedMovie.costumeDesigner, ...updatedMovie.leadCast, ...updatedMovie.supportingCast].filter(Boolean) as string[];
+            
+            const isAnyTalentBusyElsewhere = movieTalents.some(talentId => busyTalentIds.has(talentId));
+
+            if (isAnyTalentBusyElsewhere) {
+              // Filming is delayed because someone is busy with a movie that has higher priority (earlier in the list)
+              return updatedMovie;
+            }
+
+            // If not busy elsewhere, mark them as busy for this movie
+            movieTalents.forEach(id => busyTalentIds.add(id));
           }
 
           const phaseDuration = updatedMovie.phase === 'filming' ? updatedMovie.filmingWeeks * 7 : PHASE_DURATIONS[updatedMovie.phase];
@@ -581,12 +598,18 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           };
         }
 
+        const updatedTalents = currentState.talents.map(t => ({
+          ...t,
+          isBusy: busyTalentIds.has(t.id)
+        }));
+
         currentState = { 
           ...currentState, 
           currentDate: newDate, 
           currentWeek: newWeek, 
           currentYear: newYear, 
           movies: updatedMovies,
+          talents: updatedTalents,
           rivalMovies: newRivalMovies.slice(-100),
           rivalStudios: newRivalStudios,
           lastSimulationResult: simulationResult || currentState.lastSimulationResult,
@@ -685,8 +708,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, studio: { ...state.studio, cash: state.studio.cash - action.cost }, talents: state.talents.map(t => t.id === action.talentId ? { ...t, hired: true } : t) };
     case 'FIRE_TALENT':
       return { ...state, talents: state.talents.map(t => t.id === action.talentId ? { ...t, hired: false } : t) };
-    case 'SET_GAME_SPEED':
-      return { ...state, gameSpeed: action.speed };
     case 'UPDATE_MARKET_TRENDS':
       return { ...state, marketTrends: state.marketTrends.map(t => { const change = (Math.random() - 0.5) * 20; return { ...t, popularity: Math.max(20, Math.min(200, t.popularity + change)), trend: change > 0 ? 'rising' : change < 0 ? 'falling' : 'stable' }; }) };
     case 'ADD_NOTIFICATION':
@@ -754,6 +775,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       return { ...state, difficulty: action.difficulty };
     case 'LOAD_GAME':
       return { ...initialState, ...action.state };
+    case 'RESET_GAME':
+      return { ...initialState, talents: generateTalentPool() };
     case 'SELL_TO_STREAMING':
       return {
         ...state,
@@ -830,20 +853,6 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
   }, [state]);
 
   useEffect(() => {
-    if (state.gameSpeed === 0) return;
-    const interval = setInterval(() => {
-      const now = Date.now();
-      const elapsed = now - lastTick.current;
-      const daysToAdvance = Math.floor(elapsed / (1000 / state.gameSpeed));
-      if (daysToAdvance > 0) {
-        dispatch({ type: 'TICK', days: daysToAdvance });
-        lastTick.current = now;
-      }
-    }, 100);
-    return () => clearInterval(interval);
-  }, [state.gameSpeed]);
-
-  useEffect(() => {
     state.movies.forEach(movie => {
       if (movie.phase === 'released' && movie.boxOffice && !movie.awards.includes('notified')) {
         dispatch({ type: 'ADD_NOTIFICATION', notification: { id: `release-${movie.id}`, type: 'success', title: `${movie.title} Released!`, message: `Opening: $${(movie.boxOffice.openingWeekend / 1000000).toFixed(1)}M | Critics: ${movie.reviews?.critic}%`, date: state.currentDate, read: false } });
@@ -872,12 +881,13 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
     
     const newMovieId = `movie-${Date.now()}`;
-    const newCharacters: Character[] = config.characters.map(char => ({
+    const newCharacters: Character[] = config.characters.map((char, index) => ({
       id: char.id || `char-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: char.name,
       role: char.role,
       gender: char.gender,
       universeId: config.universeId,
+      actorId: char.actorId || config.leadCast[index],
       fame: 0
     }));
 
@@ -949,10 +959,14 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
     }
   }, [state.talents]);
   const fireTalent = useCallback((talentId: string) => dispatch({ type: 'FIRE_TALENT', talentId }), []);
-  const setGameSpeed = useCallback((speed: number) => dispatch({ type: 'SET_GAME_SPEED', speed }), []);
   const simulateTime = useCallback((weeks: number) => {
-    dispatch({ type: 'SET_GAME_SPEED', speed: 0 });
     dispatch({ type: 'TICK', days: weeks * 7 });
+  }, []);
+  const resetGame = useCallback(() => {
+    if (window.confirm('Are you sure you want to start a new game? All progress will be lost.')) {
+      localStorage.removeItem('sike_entertainment_save');
+      dispatch({ type: 'RESET_GAME' });
+    }
   }, []);
 
   const upgradeFacility = useCallback((facility: 'soundStages' | 'postProduction' | 'marketing') => {
@@ -1070,12 +1084,12 @@ export function GameProvider({ children }: { children: React.ReactNode }) {
       startMovieProduction, 
       hireTalent, 
       fireTalent, 
-      setGameSpeed, 
       simulateTime, 
       upgradeFacility, 
       createFranchise, 
       createUniverse, 
       setupGame,
+      resetGame,
       getSequelData, 
       extendTheatricalRun, 
       reReleaseMovie, 

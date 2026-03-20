@@ -97,12 +97,12 @@ export function Dashboard({ onNavigate }: DashboardProps) {
               <p className="font-semibold">Simulate</p>
               <p className="text-xs text-[var(--text-muted)]">Run timeline</p>
             </button>
-            <button onClick={() => simulateTime(1/7)} className="quick-action bg-[var(--gold)]/5 border-dashed border-[var(--gold)]/30">
+            <button onClick={() => simulateTime(1)} className="quick-action bg-[var(--gold)]/5 border-dashed border-[var(--gold)]/30">
               <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center text-[var(--gold)] mb-3">
                 <FastForward className="w-6 h-6" />
               </div>
-              <p className="font-semibold">Quick Skip</p>
-              <p className="text-xs text-[var(--text-muted)]">+1 Day</p>
+              <p className="font-semibold">Skip Week</p>
+              <p className="text-xs text-[var(--text-muted)]">+7 Days</p>
             </button>
             <button onClick={() => onNavigate('box-office')} className="quick-action bg-blue-500/5 border-dashed border-blue-500/30">
               <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center text-blue-400 mb-3">

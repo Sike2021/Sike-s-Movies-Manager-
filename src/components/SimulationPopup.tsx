@@ -75,12 +75,20 @@ export function SimulationPopup() {
                   <div className="space-y-2">
                     {(result.awards.nominees || result.awards.winners || []).slice(0, 8).map((a, i) => {
                       const movie = state.movies.find(m => m.id === a.projectId) || state.rivalMovies.find(m => m.id === a.projectId);
+                      const rivalMovie = state.rivalMovies.find(m => m.id === a.projectId);
                       return (
-                        <div key={i} className="text-xs flex justify-between items-center gap-4">
-                          <span className="text-white/60 shrink-0">{a.category}</span>
-                          <span className="font-bold text-white truncate text-right">
-                            {movie?.title || 'Unknown Movie'}
-                          </span>
+                        <div key={i} className="text-xs flex flex-col gap-1 py-1 border-b border-white/5 last:border-0">
+                          <div className="flex justify-between items-center gap-4">
+                            <span className="text-white/60 shrink-0">{a.category}</span>
+                            <span className="font-bold text-white truncate text-right">
+                              {movie?.title || 'Unknown Movie'}
+                            </span>
+                          </div>
+                          {rivalMovie && (rivalMovie.leadActor || rivalMovie.leadActress) && (
+                            <p className="text-[10px] text-purple-300/70 italic text-right">
+                              Starring: {[rivalMovie.leadActor, rivalMovie.leadActress].filter(Boolean).join(', ')}
+                            </p>
+                          )}
                         </div>
                       );
                     })}

@@ -10,7 +10,7 @@ export type ProductionPhase = 'writing' | 'preProduction' | 'locations' | 'filmi
 export type BudgetTier = 'micro' | 'indie' | 'mid' | 'blockbuster' | 'epic';
 export type TalentType = 'actor' | 'director' | 'writer' | 'cinematographer' | 'editor' | 'composer' | 'producer' | 'vfx' | 'productionDesigner' | 'costumeDesigner';
 export type AwardType = 'Oscar' | 'Emmy' | 'Golden Globe' | 'Critics Choice' | 'BAFTA' | 'SAG' | 'Cannes' | 'Sundance' | 'notified';
-export type Difficulty = 'easy' | 'hard';
+export type Difficulty = 'easy' | 'normal' | 'hard';
 export type Continent = 'North America' | 'South America' | 'Europe' | 'Asia' | 'Africa' | 'Oceania';
 export type ReleaseStrategy = 'express' | 'standard' | 'tentpole';
 export type ReleaseWindow = 'theatrical' | 'streaming_exclusive' | 'hybrid';
@@ -45,6 +45,7 @@ export interface Talent {
   starPower: number;
   genreAffinity: Partial<Record<Genre, number>>;
   hired: boolean;
+  isBusy?: boolean;
   bio: string;
 }
 
@@ -171,6 +172,10 @@ export interface RivalMovie {
   releaseYear: number;
   boxOffice: number;
   quality: number;
+  budget?: number;
+  director?: string;
+  leadActor?: string;
+  leadActress?: string;
 }
 
 export interface Studio {
@@ -242,7 +247,6 @@ export interface GameState {
   currentDate: Date;
   currentWeek: number;
   currentYear: number;
-  gameSpeed: number;
   difficulty: Difficulty;
   notifications: Notification[];
   lastSimulationResult?: SimulationResult;

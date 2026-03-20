@@ -28,6 +28,21 @@ export function CreateMovie({ onBack }: CreateMovieProps) {
   const [season, setSeason] = useState(1);
   const [episodes, setEpisodes] = useState(10);
   
+  const lastMovie = state.movies.length > 0 ? state.movies[state.movies.length - 1] : null;
+
+  const talentUsage = state.movies.reduce((acc, m) => {
+    const allTalent = [
+      m.director, m.writer, m.cinematographer, m.editor, m.composer, 
+      m.producer, m.vfxSupervisor, m.productionDesigner, m.costumeDesigner,
+      ...m.leadCast, ...m.supportingCast
+    ].filter(Boolean) as string[];
+    
+    allTalent.forEach(id => {
+      acc[id] = (acc[id] || 0) + 1;
+    });
+    return acc;
+  }, {} as Record<string, number>);
+
   const [releaseWeek, setReleaseWeek] = useState(1);
   const [releaseYear, setReleaseYear] = useState(state.currentYear);
   
@@ -152,7 +167,7 @@ export function CreateMovie({ onBack }: CreateMovieProps) {
       franchiseId: franchiseId || undefined, 
       universeId: universeId || undefined, 
       sequelTo: sequelTo || undefined,
-      characters: characters.filter(c => c.name.trim() !== ''),
+      characters: characters.filter(c => c.name.trim() !== '').map((c, i) => ({ ...c, actorId: leadCast[i] })),
       season: movieType === 'series' ? season : undefined,
       episodes: movieType === 'series' ? episodes : undefined,
       releaseWeek,
@@ -343,17 +358,48 @@ export function CreateMovie({ onBack }: CreateMovieProps) {
             <section className="space-y-4">
               <div className="flex items-center justify-between">
                 <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--gold)]">Character Casting & Assignment</h2>
-                <Button 
-                  onClick={() => {
-                    setCharacters([...characters, { name: '', role: 'Supporting', gender: 'Any' }]);
-                    setLeadCast([...leadCast, '']);
-                  }} 
-                  variant="ghost" 
-                  size="sm" 
-                  className="text-[10px] h-7 text-[var(--gold)]"
-                >
-                  + Add Role
-                </Button>
+                <div className="flex gap-2">
+                  {lastMovie && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => {
+                        const newCast = [...leadCast];
+                        lastMovie.leadCast.forEach((id, i) => {
+                          if (i < newCast.length) newCast[i] = id;
+                          else newCast.push(id);
+                        });
+                        setLeadCast(newCast);
+                        
+                        // Also try to match character names if they are empty
+                        const newChars = [...characters];
+                        lastMovie.characters.forEach((charId, i) => {
+                          const existingChar = state.characters.find(c => c.id === charId);
+                          if (existingChar && i < newChars.length && !newChars[i].name) {
+                            newChars[i] = { ...newChars[i], name: existingChar.name, id: existingChar.id };
+                          }
+                        });
+                        setCharacters(newChars);
+                        toast.success("Quick Cast: Applied cast from last movie");
+                      }}
+                      className="text-[10px] h-7 px-2 border border-[var(--gold)]/30 text-[var(--gold)] hover:bg-[var(--gold)]/10"
+                    >
+                      <Sparkles className="w-3 h-3 mr-1" />
+                      Quick Cast
+                    </Button>
+                  )}
+                  <Button 
+                    onClick={() => {
+                      setCharacters([...characters, { name: '', role: 'Supporting', gender: 'Any' }]);
+                      setLeadCast([...leadCast, '']);
+                    }} 
+                    variant="ghost" 
+                    size="sm" 
+                    className="text-[10px] h-7 text-[var(--gold)]"
+                  >
+                    + Add Role
+                  </Button>
+                </div>
               </div>
               <p className="text-[10px] text-[var(--text-muted)]">Assign actors to specific character roles. You can filter actors by gender for each role.</p>
               
@@ -469,10 +515,15 @@ export function CreateMovie({ onBack }: CreateMovieProps) {
                             <option value="">Select Actor...</option>
                             {state.talents
                               .filter(t => t.type === 'actor' && (char.gender === 'Any' || t.gender === char.gender))
-                              .sort((a, b) => b.starPower - a.starPower)
+                              .sort((a, b) => {
+                                const usageA = talentUsage[a.id] || 0;
+                                const usageB = talentUsage[b.id] || 0;
+                                if (usageB !== usageA) return usageB - usageA;
+                                return b.starPower - a.starPower;
+                              })
                               .map(a => (
                                 <option key={a.id} value={a.id} className="bg-[var(--bg-secondary)]">
-                                  {a.name} {a.hired ? '✓' : ''} • SP: {a.starPower} • ${formatMoney(a.salary)}
+                                  {a.name} {a.hired ? '✓' : ''} {talentUsage[a.id] ? `(${talentUsage[a.id]}x)` : ''} • SP: {a.starPower} • ${formatMoney(a.salary)}
                                 </option>
                               ))}
                           </select>
@@ -480,7 +531,7 @@ export function CreateMovie({ onBack }: CreateMovieProps) {
                         </div>
                       </div>
 
-                      {state.characters.length > 0 && (universeId || franchiseId) && (
+                      {state.characters.length > 0 && (
                         <div className="flex items-center gap-2 pt-1">
                           <span className="text-[9px] text-[var(--text-muted)] uppercase font-black whitespace-nowrap">Or use existing:</span>
                           <div className="relative flex-1">
@@ -511,7 +562,9 @@ export function CreateMovie({ onBack }: CreateMovieProps) {
                                     const franchise = state.franchises.find(f => f.id === franchiseId);
                                     return franchise?.characters.includes(c.id);
                                   }
-                                  return false;
+                                  // If no universe/franchise selected, show all but maybe filter by name or something?
+                                  // For now, show all if no specific filter
+                                  return !universeId && !franchiseId;
                                 })
                                 .map(c => <option key={c.id} value={c.id} className="bg-[var(--bg-secondary)]">{c.name}</option>)}
                             </select>
@@ -535,17 +588,122 @@ export function CreateMovie({ onBack }: CreateMovieProps) {
         {step === 3 && (
           <div className="space-y-6 animate-fade-in">
             <section className="space-y-4">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--gold)]">Key Crew</h2>
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-[var(--gold)]">Key Crew</h2>
+                {lastMovie && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => {
+                      if (lastMovie.director) setDirector(lastMovie.director);
+                      if (lastMovie.writer) setWriter(lastMovie.writer);
+                      if (lastMovie.cinematographer) setCinematographer(lastMovie.cinematographer);
+                      if (lastMovie.editor) setEditor(lastMovie.editor);
+                      if (lastMovie.composer) setComposer(lastMovie.composer);
+                      if (lastMovie.producer) setProducer(lastMovie.producer);
+                      if (lastMovie.vfxSupervisor) setVfxSupervisor(lastMovie.vfxSupervisor);
+                      if (lastMovie.productionDesigner) setProductionDesigner(lastMovie.productionDesigner);
+                      if (lastMovie.costumeDesigner) setCostumeDesigner(lastMovie.costumeDesigner);
+                      toast.success("Quick Cast: Applied crew from last movie");
+                    }}
+                    className="text-[10px] h-7 px-2 border border-[var(--gold)]/30 text-[var(--gold)] hover:bg-[var(--gold)]/10"
+                  >
+                    <Sparkles className="w-3 h-3 mr-1" />
+                    Quick Cast Last Crew
+                  </Button>
+                )}
+              </div>
               <div className="space-y-3">
-                <CrewSelect label="Director" icon={Film} value={director} onChange={setDirector} options={state.talents.filter(t => t.type === 'director')} />
-                <CrewSelect label="Writer" icon={Sparkles} value={writer} onChange={setWriter} options={state.talents.filter(t => t.type === 'writer')} />
-                <CrewSelect label="Cinematographer" icon={Camera} value={cinematographer} onChange={setCinematographer} options={state.talents.filter(t => t.type === 'cinematographer')} />
-                <CrewSelect label="Editor" icon={Scissors} value={editor} onChange={setEditor} options={state.talents.filter(t => t.type === 'editor')} />
-                <CrewSelect label="Composer" icon={Music} value={composer} onChange={setComposer} options={state.talents.filter(t => t.type === 'composer')} />
-                <CrewSelect label="Producer" icon={Briefcase} value={producer} onChange={setProducer} options={state.talents.filter(t => t.type === 'producer')} />
-                <CrewSelect label="VFX Supervisor" icon={Sparkles} value={vfxSupervisor} onChange={setVfxSupervisor} options={state.talents.filter(t => t.type === 'vfx')} />
-                <CrewSelect label="Production Designer" icon={Palette} value={productionDesigner} onChange={setProductionDesigner} options={state.talents.filter(t => t.type === 'productionDesigner')} />
-                <CrewSelect label="Costume Designer" icon={Shirt} value={costumeDesigner} onChange={setCostumeDesigner} options={state.talents.filter(t => t.type === 'costumeDesigner')} />
+                <CrewSelect 
+                  label="Director" 
+                  icon={Film} 
+                  value={director} 
+                  onChange={setDirector} 
+                  options={state.talents
+                    .filter(t => t.type === 'director')
+                    .sort((a, b) => (talentUsage[b.id] || 0) - (talentUsage[a.id] || 0))} 
+                  usage={talentUsage}
+                />
+                <CrewSelect 
+                  label="Writer" 
+                  icon={Sparkles} 
+                  value={writer} 
+                  onChange={setWriter} 
+                  options={state.talents
+                    .filter(t => t.type === 'writer')
+                    .sort((a, b) => (talentUsage[b.id] || 0) - (talentUsage[a.id] || 0))} 
+                  usage={talentUsage}
+                />
+                <CrewSelect 
+                  label="Cinematographer" 
+                  icon={Camera} 
+                  value={cinematographer} 
+                  onChange={setCinematographer} 
+                  options={state.talents
+                    .filter(t => t.type === 'cinematographer')
+                    .sort((a, b) => (talentUsage[b.id] || 0) - (talentUsage[a.id] || 0))} 
+                  usage={talentUsage}
+                />
+                <CrewSelect 
+                  label="Editor" 
+                  icon={Scissors} 
+                  value={editor} 
+                  onChange={setEditor} 
+                  options={state.talents
+                    .filter(t => t.type === 'editor')
+                    .sort((a, b) => (talentUsage[b.id] || 0) - (talentUsage[a.id] || 0))} 
+                  usage={talentUsage}
+                />
+                <CrewSelect 
+                  label="Composer" 
+                  icon={Music} 
+                  value={composer} 
+                  onChange={setComposer} 
+                  options={state.talents
+                    .filter(t => t.type === 'composer')
+                    .sort((a, b) => (talentUsage[b.id] || 0) - (talentUsage[a.id] || 0))} 
+                  usage={talentUsage}
+                />
+                <CrewSelect 
+                  label="Producer" 
+                  icon={Briefcase} 
+                  value={producer} 
+                  onChange={setProducer} 
+                  options={state.talents
+                    .filter(t => t.type === 'producer')
+                    .sort((a, b) => (talentUsage[b.id] || 0) - (talentUsage[a.id] || 0))} 
+                  usage={talentUsage}
+                />
+                <CrewSelect 
+                  label="VFX Supervisor" 
+                  icon={Sparkles} 
+                  value={vfxSupervisor} 
+                  onChange={setVfxSupervisor} 
+                  options={state.talents
+                    .filter(t => t.type === 'vfx')
+                    .sort((a, b) => (talentUsage[b.id] || 0) - (talentUsage[a.id] || 0))} 
+                  usage={talentUsage}
+                />
+                <CrewSelect 
+                  label="Production Designer" 
+                  icon={Palette} 
+                  value={productionDesigner} 
+                  onChange={setProductionDesigner} 
+                  options={state.talents
+                    .filter(t => t.type === 'productionDesigner')
+                    .sort((a, b) => (talentUsage[b.id] || 0) - (talentUsage[a.id] || 0))} 
+                  usage={talentUsage}
+                />
+                <CrewSelect 
+                  label="Costume Designer" 
+                  icon={Shirt} 
+                  value={costumeDesigner} 
+                  onChange={setCostumeDesigner} 
+                  options={state.talents
+                    .filter(t => t.type === 'costumeDesigner')
+                    .sort((a, b) => (talentUsage[b.id] || 0) - (talentUsage[a.id] || 0))} 
+                  usage={talentUsage}
+                />
               </div>
             </section>
 
@@ -774,7 +932,7 @@ function ReviewItem({ label, value }: { label: string, value: string | number })
   );
 }
 
-function CrewSelect({ label, icon: Icon, value, onChange, options }: { label: string; icon: LucideIcon; value: string; onChange: (v: string) => void; options: Talent[] }) {
+function CrewSelect({ label, icon: Icon, value, onChange, options, usage }: { label: string; icon: LucideIcon; value: string; onChange: (v: string) => void; options: Talent[]; usage: Record<string, number> }) {
   const selected = options.find(o => o.id === value);
   return (
     <div className="card p-3 flex items-center justify-between">
@@ -798,10 +956,15 @@ function CrewSelect({ label, icon: Icon, value, onChange, options }: { label: st
       >
         <option value="">Select...</option>
         {options
-          .sort((a, b) => b.starPower - a.starPower)
+          .sort((a, b) => {
+            const usageA = usage[a.id] || 0;
+            const usageB = usage[b.id] || 0;
+            if (usageB !== usageA) return usageB - usageA;
+            return b.starPower - a.starPower;
+          })
           .map(o => (
             <option key={o.id} value={o.id}>
-              {o.name} {o.hired ? '✓' : ''} • SP: {o.starPower} • ${formatMoney(o.salary)}
+              {o.name} {o.hired ? '✓' : ''} {usage[o.id] ? `(${usage[o.id]}x)` : ''} • SP: {o.starPower} • ${formatMoney(o.salary)}
             </option>
           ))}
       </select>

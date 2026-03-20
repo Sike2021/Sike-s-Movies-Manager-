@@ -13,7 +13,7 @@ interface SettingsProps {
 }
 
 export function Settings({ onNavigate, installApp }: SettingsProps) {
-  const { state, upgradeFacility, setDifficulty } = useGame();
+  const { state, upgradeFacility, setDifficulty, resetGame } = useGame();
 
   const handleUpgrade = (facility: 'soundStages' | 'postProduction' | 'marketing') => {
     const costs = { soundStages: 10000000, postProduction: 7500000, marketing: 5000000 };
@@ -73,19 +73,25 @@ export function Settings({ onNavigate, installApp }: SettingsProps) {
           <div className="flex bg-white/5 p-1 rounded-lg border border-white/10">
             <button 
               onClick={() => setDifficulty('easy')}
-              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${state.difficulty === 'easy' ? 'bg-green-500 text-black' : 'text-white/40 hover:text-white'}`}
+              className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${state.difficulty === 'easy' ? 'bg-green-500 text-black' : 'text-white/40 hover:text-white'}`}
             >
               Easy
             </button>
             <button 
+              onClick={() => setDifficulty('normal')}
+              className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${state.difficulty === 'normal' ? 'bg-blue-500 text-black' : 'text-white/40 hover:text-white'}`}
+            >
+              Normal
+            </button>
+            <button 
               onClick={() => setDifficulty('hard')}
-              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${state.difficulty === 'hard' ? 'bg-red-500 text-black' : 'text-white/40 hover:text-white'}`}
+              className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-md transition-all ${state.difficulty === 'hard' ? 'bg-red-500 text-black' : 'text-white/40 hover:text-white'}`}
             >
               Hard
             </button>
           </div>
           <p className="text-[10px] text-[var(--text-muted)] mt-2 px-1">
-            {state.difficulty === 'easy' ? 'Rival studios are less aggressive and produce lower quality movies.' : 'Rival studios are more aggressive and produce higher quality movies.'}
+            {state.difficulty === 'easy' ? 'Rival studios are less aggressive and produce lower quality movies.' : state.difficulty === 'normal' ? 'Standard challenge with balanced rival studios.' : 'Rival studios are more aggressive and produce higher quality movies.'}
           </p>
         </div>
 
@@ -102,13 +108,11 @@ export function Settings({ onNavigate, installApp }: SettingsProps) {
             variant="ghost" 
             className="w-full text-red-500 hover:bg-red-500/10"
             onClick={() => {
-              if (confirm('Are you sure you want to clear all game data? This cannot be undone.')) {
-                localStorage.clear();
-                window.location.reload();
-              }
+              resetGame();
+              onNavigate('setup');
             }}
           >
-            Clear All Game Data
+            Start New Game
           </Button>
         </div>
       </div>
