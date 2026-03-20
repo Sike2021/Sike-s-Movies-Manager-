@@ -9,7 +9,8 @@ export type Genre =
 export type ProductionPhase = 'writing' | 'preProduction' | 'locations' | 'filming' | 'postProduction' | 'marketing' | 'released';
 export type BudgetTier = 'micro' | 'indie' | 'mid' | 'blockbuster' | 'epic';
 export type TalentType = 'actor' | 'director' | 'writer' | 'cinematographer' | 'editor' | 'composer' | 'producer' | 'vfx' | 'productionDesigner' | 'costumeDesigner';
-export type AwardType = 'Oscar' | 'Emmy' | 'Golden Globe' | 'Critics Choice' | 'notified';
+export type AwardType = 'Oscar' | 'Emmy' | 'Golden Globe' | 'Critics Choice' | 'BAFTA' | 'SAG' | 'Cannes' | 'Sundance' | 'notified';
+export type Difficulty = 'easy' | 'hard';
 export type Continent = 'North America' | 'South America' | 'Europe' | 'Asia' | 'Africa' | 'Oceania';
 export type ReleaseStrategy = 'express' | 'standard' | 'tentpole';
 export type ReleaseWindow = 'theatrical' | 'streaming_exclusive' | 'hybrid';
@@ -218,7 +219,7 @@ export interface AwardNominee {
 
 export interface SimulationResult {
   date: Date;
-  topMovies: { id: string; title: string; dailyRevenue: number }[];
+  topMovies: { id: string; title: string; weeklyRevenue: number }[];
   news: string[];
   awards?: {
     type: 'nominations' | 'ceremony';
@@ -242,6 +243,7 @@ export interface GameState {
   currentWeek: number;
   currentYear: number;
   gameSpeed: number;
+  difficulty: Difficulty;
   notifications: Notification[];
   lastSimulationResult?: SimulationResult;
   awardHistory: AwardResult[];

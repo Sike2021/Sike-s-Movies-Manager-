@@ -480,7 +480,7 @@ export function CreateMovie({ onBack }: CreateMovieProps) {
                         </div>
                       </div>
 
-                      {state.characters.length > 0 && (
+                      {state.characters.length > 0 && (universeId || franchiseId) && (
                         <div className="flex items-center gap-2 pt-1">
                           <span className="text-[9px] text-[var(--text-muted)] uppercase font-black whitespace-nowrap">Or use existing:</span>
                           <div className="relative flex-1">
@@ -492,12 +492,27 @@ export function CreateMovie({ onBack }: CreateMovieProps) {
                                   const newChars = [...characters];
                                   newChars[i] = { ...newChars[i], name: existing.name, id: existing.id };
                                   setCharacters(newChars);
+                                  
+                                  // Auto-assign actor if character has one
+                                  if (existing.actorId) {
+                                    const newCast = [...leadCast];
+                                    newCast[i] = existing.actorId;
+                                    setLeadCast(newCast);
+                                    toast.info(`Auto-assigned ${state.talents.find(t => t.id === existing.actorId)?.name} to ${existing.name}`);
+                                  }
                                 }
                               }}
                             >
                               <option value="">Select Legacy Character...</option>
                               {state.characters
-                                .filter(c => !universeId || c.universeId === universeId)
+                                .filter(c => {
+                                  if (universeId && c.universeId === universeId) return true;
+                                  if (franchiseId) {
+                                    const franchise = state.franchises.find(f => f.id === franchiseId);
+                                    return franchise?.characters.includes(c.id);
+                                  }
+                                  return false;
+                                })
                                 .map(c => <option key={c.id} value={c.id} className="bg-[var(--bg-secondary)]">{c.name}</option>)}
                             </select>
                             <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[var(--text-muted)] text-[8px]">▼</div>

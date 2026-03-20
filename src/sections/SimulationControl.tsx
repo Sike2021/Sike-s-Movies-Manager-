@@ -1,15 +1,14 @@
 import { useGame } from '@/context/GameContext';
 import { formatDate } from '@/lib/gameUtils';
-import { ChevronLeft, Play, Pause, FastForward, Zap, Calendar, TrendingUp, Clock } from 'lucide-react';
+import { ChevronLeft, Play, Pause, FastForward, Zap } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Button } from '@/components/ui/button';
 
 interface SimulationControlProps {
   onBack: () => void;
 }
 
 export function SimulationControl({ onBack }: SimulationControlProps) {
-  const { state, setGameSpeed, simulateTime } = useGame();
+  const { state, setGameSpeed } = useGame();
   const upcomingEvents = state.events.filter(e => e.week > state.currentWeek).slice(0, 5);
 
   return (
@@ -45,19 +44,6 @@ export function SimulationControl({ onBack }: SimulationControlProps) {
             <button onClick={() => setGameSpeed(3)} className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${state.gameSpeed === 3 ? 'bg-[var(--gold)] text-black' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'}`}>
               <Zap className="w-5 h-5" /><span className="text-xs">3x</span>
             </button>
-            <button onClick={() => setGameSpeed(10)} className={`p-3 rounded-xl flex flex-col items-center gap-1 transition-all ${state.gameSpeed === 10 ? 'bg-[var(--gold)] text-black' : 'bg-[var(--bg-secondary)] text-[var(--text-secondary)]'}`}>
-              <Zap className="w-5 h-5" /><span className="text-xs">10x</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="card p-4">
-          <p className="text-sm text-[var(--text-secondary)] mb-3">Quick Simulate</p>
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" className="border-[var(--border)] text-[var(--text-secondary)]" onClick={() => simulateTime(1)}><Clock className="w-4 h-4 mr-2" /> 1 Week</Button>
-            <Button variant="outline" className="border-[var(--border)] text-[var(--text-secondary)]" onClick={() => simulateTime(4)}><Clock className="w-4 h-4 mr-2" /> 4 Weeks</Button>
-            <Button variant="outline" className="border-[var(--border)] text-[var(--text-secondary)]" onClick={() => simulateTime(12)}><Calendar className="w-4 h-4 mr-2" /> 12 Weeks</Button>
-            <Button variant="outline" className="border-[var(--border)] text-[var(--text-secondary)]" onClick={() => simulateTime(26)}><TrendingUp className="w-4 h-4 mr-2" /> 26 Weeks</Button>
           </div>
         </div>
 

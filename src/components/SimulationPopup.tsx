@@ -41,12 +41,13 @@ export function SimulationPopup() {
                       <span className="text-[var(--gold)] font-mono text-sm">#{i+1}</span>
                       <span className="font-medium text-sm truncate max-w-[180px]">{m.title}</span>
                     </div>
-                    <span className="text-green-400 font-mono text-sm">+{formatMoney(m.dailyRevenue)}</span>
+                    <span className="text-green-400 font-mono text-sm">+{formatMoney(m.weeklyRevenue)}</span>
                   </div>
                 )) : (
                   <p className="text-sm text-white/40 italic">No movies currently in theaters.</p>
                 )}
               </div>
+              <p className="text-[10px] text-[var(--text-muted)] mt-2 text-center uppercase tracking-widest font-bold">Weekly Performance</p>
             </section>
 
             {/* News Section */}
@@ -72,14 +73,17 @@ export function SimulationPopup() {
                     {result.awards.type === 'nominations' ? '🏆 Nominations Announced!' : '⭐ Awards Ceremony Results!'}
                   </p>
                   <div className="space-y-2">
-                    {(result.awards.nominees || result.awards.winners || []).slice(0, 5).map((a, i) => (
-                      <div key={i} className="text-xs flex justify-between items-center">
-                        <span className="text-white/60">{a.category}</span>
-                        <span className="font-bold text-white">
-                          {state.movies.find(m => m.id === a.projectId)?.title}
-                        </span>
-                      </div>
-                    ))}
+                    {(result.awards.nominees || result.awards.winners || []).slice(0, 8).map((a, i) => {
+                      const movie = state.movies.find(m => m.id === a.projectId) || state.rivalMovies.find(m => m.id === a.projectId);
+                      return (
+                        <div key={i} className="text-xs flex justify-between items-center gap-4">
+                          <span className="text-white/60 shrink-0">{a.category}</span>
+                          <span className="font-bold text-white truncate text-right">
+                            {movie?.title || 'Unknown Movie'}
+                          </span>
+                        </div>
+                      );
+                    })}
                     {(result.awards.nominees || result.awards.winners || []).length > 5 && (
                       <p className="text-[10px] text-center text-white/40 mt-2">...and more categories</p>
                     )}

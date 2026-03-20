@@ -13,7 +13,7 @@ interface SettingsProps {
 }
 
 export function Settings({ onNavigate, installApp }: SettingsProps) {
-  const { state, upgradeFacility } = useGame();
+  const { state, upgradeFacility, setDifficulty } = useGame();
 
   const handleUpgrade = (facility: 'soundStages' | 'postProduction' | 'marketing') => {
     const costs = { soundStages: 10000000, postProduction: 7500000, marketing: 5000000 };
@@ -66,6 +66,27 @@ export function Settings({ onNavigate, installApp }: SettingsProps) {
             <div className="flex justify-between"><span className="text-[var(--text-muted)]">Franchises</span><span>{state.franchises.length}</span></div>
             <div className="flex justify-between"><span className="text-[var(--text-muted)]">Universes</span><span>{state.universes.length}</span></div>
           </div>
+        </div>
+
+        <div>
+          <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">Game Difficulty</h3>
+          <div className="flex bg-white/5 p-1 rounded-lg border border-white/10">
+            <button 
+              onClick={() => setDifficulty('easy')}
+              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${state.difficulty === 'easy' ? 'bg-green-500 text-black' : 'text-white/40 hover:text-white'}`}
+            >
+              Easy
+            </button>
+            <button 
+              onClick={() => setDifficulty('hard')}
+              className={`flex-1 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${state.difficulty === 'hard' ? 'bg-red-500 text-black' : 'text-white/40 hover:text-white'}`}
+            >
+              Hard
+            </button>
+          </div>
+          <p className="text-[10px] text-[var(--text-muted)] mt-2 px-1">
+            {state.difficulty === 'easy' ? 'Rival studios are less aggressive and produce lower quality movies.' : 'Rival studios are more aggressive and produce higher quality movies.'}
+          </p>
         </div>
 
         {installApp && (
