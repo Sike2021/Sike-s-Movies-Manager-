@@ -5,7 +5,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useState } from 'react';
 import { AboutModal } from '@/components/AboutModal';
 
-type Screen = 'dashboard' | 'movies' | 'talent' | 'stats' | 'settings' | 'create-movie' | 'simulation' | 'box-office';
+type Screen = 'setup' | 'dashboard' | 'movies' | 'talent' | 'stats' | 'settings' | 'create-movie' | 'simulation' | 'box-office';
 
 interface DashboardProps {
   onNavigate: (screen: Screen) => void;

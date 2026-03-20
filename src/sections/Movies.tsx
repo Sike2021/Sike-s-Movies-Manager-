@@ -24,7 +24,7 @@ const WEIGHTS: Record<Continent, number> = {
   'Oceania': 0.025
 };
 
-type Screen = 'dashboard' | 'movies' | 'talent' | 'stats' | 'settings' | 'create-movie' | 'simulation';
+type Screen = 'setup' | 'dashboard' | 'movies' | 'talent' | 'stats' | 'settings' | 'create-movie' | 'simulation' | 'box-office';
 
 interface MoviesProps {
   onNavigate: (screen: Screen) => void;
